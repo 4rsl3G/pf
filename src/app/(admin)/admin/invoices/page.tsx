@@ -36,7 +36,7 @@ export default function AdminInvoices() {
     qs.set("limit", "30");
 
     const r = await apiFetch<any>(`/admin/invoices?${qs.toString()}`, { auth: true });
-    setItems(r.data || []);
+    setItems(r?.data || []);
   }, [status, q]);
 
   useEffect(() => {
@@ -52,15 +52,13 @@ export default function AdminInvoices() {
     })();
   }, [load]);
 
-  // optional: auto reload saat filter berubah
+  // auto reload saat filter berubah (biar gak harus klik Apply)
   useEffect(() => {
-    const t = setTimeout(() => {
-      load().catch(() => {});
-    }, 250);
+    const t = setTimeout(() => load().catch(() => {}), 250);
     return () => clearTimeout(t);
   }, [status, q, load]);
 
-  // realtime refresh throttle (SSE)
+  // realtime refresh throttle (kalau SSE kamu sudah OK)
   useEffect(() => {
     let t: any = null;
     const close = openAdminSSE(() => {
@@ -141,9 +139,7 @@ export default function AdminInvoices() {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-medium truncate">{x.invoiceId}</div>
-                  <div className="text-xs text-subtle truncate">
-                    {x.productName} — {x.variantName}
-                  </div>
+                  <div className="text-xs text-subtle truncate">{x.productName} — {x.variantName}</div>
                   <div className="text-xs text-subtle mt-1 truncate">
                     Created: {fmtDate(x.createdAt)} • Exp: {fmtDate(x.expiresAt)}
                   </div>
@@ -176,17 +172,12 @@ function StatusBadge({ status }: { status: string }) {
     FAILED: "bg-[rgba(239,68,68,.14)] border-[rgba(239,68,68,.25)]",
   };
   return (
-    <span
-      className={`inline-flex items-center rounded-2xl border px-3 py-1 text-xs ${
-        map[status] || "border-soft bg-[rgba(255,255,255,.06)]"
-      }`}
-    >
+    <span className={`inline-flex items-center rounded-2xl border px-3 py-1 text-xs ${map[status] || "border-soft bg-[rgba(255,255,255,.06)]"}`}>
       {status}
     </span>
   );
 }
 
-// safer date parsing (Safari/iOS friendly)
 function fmtDate(v: any) {
   if (!v) return "-";
   const s = String(v);
