@@ -11,19 +11,21 @@ export default function SearchBar({
 }) {
   return (
     <div className="relative">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-subtle pointer-events-none" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-subtle" />
 
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Cari produk… (CapCut, Netflix, Canva)"
+        inputMode="search"
+        autoComplete="off"
         className={[
           "w-full h-11 rounded-2xl",
-          "border border-soft bg-[rgba(255,255,255,.05)]",
-          "pl-10 pr-10 text-sm",
+          "border border-soft bg-[rgba(255,255,255,.06)]",
+          "pl-10 pr-11 text-sm",
           "outline-none",
           "placeholder:text-[rgba(167,243,208,.45)]",
-          "focus:border-[rgba(16,185,129,.28)] focus:ring-2 focus:ring-[rgba(16,185,129,.18)]",
+          "focus:border-[rgba(16,185,129,.30)] focus:ring-0",
           "transition",
         ].join(" ")}
         style={{ textOverflow: "ellipsis" }}
