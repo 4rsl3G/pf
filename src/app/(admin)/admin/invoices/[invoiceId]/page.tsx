@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { apiFetch, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
@@ -8,15 +8,26 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default function AdminInvoiceDetail({ params }: { params: { invoiceId: string } }) {
-  const invoiceId = params.invoiceId;
+  // params dari URL bisa ter-encode (mis: INV%2F2026%2F001)
+  const invoiceIdRaw = useMemo(() => {
+    try {
+      return decodeURIComponent(params.invoiceId || "");
+    } catch {
+      return params.invoiceId || "";
+    }
+  }, [params.invoiceId]);
+
+  // untuk dipakai di URL API
+  const invoiceKey = useMemo(() => encodeURIComponent(invoiceIdRaw), [invoiceIdRaw]);
+
   const [inv, setInv] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  async function load() {
-    const r = await apiFetch<any>(`/admin/invoices/${invoiceId}`, { auth: true });
-    setInv(r.data);
-  }
+  const load = useCallback(async () => {
+    const r = await apiFetch<any>(`/admin/invoices/${invoiceKey}`, { auth: true });
+    setInv(r.data ?? null);
+  }, [invoiceKey]);
 
   useEffect(() => {
     (async () => {
@@ -24,17 +35,18 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
         setLoading(true);
         await load();
       } catch (e: any) {
+        setInv(null);
         toast.error(e?.error || e?.message || "Gagal load invoice");
       } finally {
         setLoading(false);
       }
     })();
-  }, [invoiceId]);
+  }, [load]);
 
   async function retryFulfill() {
     try {
       setBusy(true);
-      const r = await apiFetch<any>(`/admin/invoices/${invoiceId}/retry-fulfill`, { method: "POST", auth: true });
+      const r = await apiFetch<any>(`/admin/invoices/${invoiceKey}/retry-fulfill`, { method: "POST", auth: true });
       toast.success(`Fulfilled: ${r?.data?.premifyOrderId || "-"}`);
       await load();
     } catch (e: any) {
@@ -47,7 +59,7 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
   async function refetchReceipt() {
     try {
       setBusy(true);
-      await apiFetch<any>(`/admin/invoices/${invoiceId}/refetch-receipt`, { method: "POST", auth: true });
+      await apiFetch<any>(`/admin/invoices/${invoiceKey}/refetch-receipt`, { method: "POST", auth: true });
       toast.success("Receipt refreshed");
       await load();
     } catch (e: any) {
@@ -60,7 +72,7 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
   async function expire() {
     try {
       setBusy(true);
-      await apiFetch<any>(`/admin/invoices/${invoiceId}/expire`, { method: "POST", auth: true });
+      await apiFetch<any>(`/admin/invoices/${invoiceKey}/expire`, { method: "POST", auth: true });
       toast.success("Expired");
       await load();
     } catch (e: any) {
@@ -71,29 +83,53 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
   }
 
   const qrisPng = inv?.publicToken
-    ? `${API_BASE.replace(/\/v1$/, "")}/qris/payment/${inv.publicToken}?t=${Date.now()}`
+    ? `${API_BASE.replace(/\/v1$/, "")}/qris/payment/${encodeURIComponent(inv.publicToken)}?t=${Date.now()}`
     : null;
+
+  const disableActions = busy || loading;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <div className="text-sm text-subtle">Invoice Detail</div>
-          <div className="text-2xl font-semibold">{invoiceId}</div>
+          <div className="text-2xl font-semibold">{invoiceIdRaw || "-"}</div>
         </div>
         <Link href="/admin/invoices">
-          <Button variant="secondary" className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft">Back</Button>
+          <Button
+            variant="secondary"
+            className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
+          >
+            Back
+          </Button>
         </Link>
       </div>
 
       {loading ? (
         <div className="card-glass rounded-2xl p-6 skeleton h-[240px]" />
-      ) : !inv ? null : (
+      ) : !inv ? (
+        <Card className="card-glass border-soft rounded-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Invoice tidak ditemukan</CardTitle>
+            <CardDescription className="text-subtle">
+              Key: <span className="font-mono">{invoiceIdRaw}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-subtle">
+              Biasanya ini terjadi karena invoiceId mengandung karakter khusus dan URL tidak di-encode.
+              Setelah update list + detail page (encode/decode), ini harusnya beres.
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
         <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
           <Card className="card-glass border-soft rounded-2xl">
             <CardHeader>
               <CardTitle className="text-base">Info</CardTitle>
-              <CardDescription className="text-subtle">{inv.productName} — {inv.variantName}</CardDescription>
+              <CardDescription className="text-subtle">
+                {inv.productName} — {inv.variantName}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <Row k="Status" v={inv.status} />
@@ -107,13 +143,23 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
               <Row k="PaidAt" v={inv.paidAt ? new Date(inv.paidAt).toLocaleString("id-ID") : "-"} />
 
               <div className="flex gap-2 flex-wrap pt-2">
-                <Button className="btn-brand rounded-2xl" onClick={retryFulfill} disabled={busy}>
+                <Button className="btn-brand rounded-2xl" onClick={retryFulfill} disabled={disableActions}>
                   Retry Fulfill
                 </Button>
-                <Button variant="secondary" className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft" onClick={refetchReceipt} disabled={busy}>
+                <Button
+                  variant="secondary"
+                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
+                  onClick={refetchReceipt}
+                  disabled={disableActions}
+                >
                   Refetch Receipt
                 </Button>
-                <Button variant="secondary" className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft" onClick={expire} disabled={busy}>
+                <Button
+                  variant="secondary"
+                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
+                  onClick={expire}
+                  disabled={disableActions}
+                >
                   Expire
                 </Button>
               </div>
