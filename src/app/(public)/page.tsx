@@ -101,15 +101,16 @@ export default function HomePage() {
           <PromoBanner />
         </div>
 
-        {/* STICKY: height stabil */}
+        {/* Sticky filter */}
         <div className="mt-6">
           <div className="sticky top-[64px] z-30">
+            {/* background strip: biar tidak “tembus” & tidak goyang */}
             <div className="bg-[rgb(var(--bg))] pb-3">
               <div className="card-glass p-4">
                 <div className="grid gap-3">
                   <SearchBar value={query} onChange={setQuery} />
 
-                  {/* pills 1 baris: horizontal scroll */}
+                  {/* ONE LINE pills => height stabil */}
                   <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
                     <div className="min-w-max">
                       <CategoryPills items={categories} value={category} onChange={setCategory} />
@@ -121,10 +122,12 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Popular */}
         <div className="mt-8">
           <PopularRow loading={loading} products={popular} />
         </div>
 
+        {/* Grid */}
         <div className="mt-10" id="produk">
           <ProductGrid loading={loading} products={filtered} />
         </div>
