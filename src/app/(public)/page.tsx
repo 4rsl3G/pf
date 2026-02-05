@@ -93,33 +93,24 @@ export default function HomePage() {
   }, [products]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
-      <StoreHero />
+    <div className="bg-noise">
+      <div className="mx-auto max-w-6xl px-4 py-6 md:py-10">
+        <StoreHero />
 
-      <div className="mt-5">
-        <PromoBanner />
-      </div>
+        <div className="mt-5">
+          <PromoBanner />
+        </div>
 
-      {/* ===== Sticky Search + Category (STABLE HEIGHT) ===== */}
-      <div className="mt-6">
-        <div className="sticky top-16 z-30">
-          {/* Strip solid biar sticky gak tembus & gak “geser” */}
-          <div className="bg-[rgb(var(--bg))] border-b border-soft">
-            <div className="py-3">
-              <div className="card-glass border-soft rounded-2xl p-4 shadow-soft">
+        {/* STICKY: height stabil */}
+        <div className="mt-6">
+          <div className="sticky top-[64px] z-30">
+            <div className="bg-[rgb(var(--bg))] pb-3">
+              <div className="card-glass p-4">
                 <div className="grid gap-3">
                   <SearchBar value={query} onChange={setQuery} />
 
-                  {/* Kunci: kategori 1 baris + horizontal scroll (NO WRAP) */}
-                  <div
-                    className={[
-                      "overflow-x-auto overscroll-x-contain",
-                      "[-webkit-overflow-scrolling:touch]",
-                      "scrollbar-hide",
-                      "whitespace-nowrap",
-                    ].join(" ")}
-                  >
-                    {/* min-w-max biar isi gak maksa wrap */}
+                  {/* pills 1 baris: horizontal scroll */}
+                  <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
                     <div className="min-w-max">
                       <CategoryPills items={categories} value={category} onChange={setCategory} />
                     </div>
@@ -130,16 +121,13 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* spacer biar section bawah gak ketiban sticky */}
-        <div className="h-3" />
-      </div>
+        <div className="mt-8">
+          <PopularRow loading={loading} products={popular} />
+        </div>
 
-      <div className="mt-8">
-        <PopularRow loading={loading} products={popular} />
-      </div>
-
-      <div className="mt-10" id="produk">
-        <ProductGrid loading={loading} products={filtered} />
+        <div className="mt-10" id="produk">
+          <ProductGrid loading={loading} products={filtered} />
+        </div>
       </div>
     </div>
   );
