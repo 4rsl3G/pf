@@ -281,14 +281,15 @@ export default function ProductDetailPage() {
               <div className="mt-1 text-2xl font-extrabold">{formatIDR(chosen.price)}</div>
 
               <div className="mt-4">
-                <CheckoutDialog
-                  product={product}
-                  defaultVariantId={variantId}   {/* ✅ sync varian terpilih */}
-                  disabled={Number(chosen.stock || 0) <= 0}
-                  label={Number(chosen.stock || 0) <= 0 ? "Habis" : "Lanjutkan"}
-                  className="w-full btn-brand rounded-2xl h-11"
-                  triggerVariant="default"
-                />
+                {/* sync varian terpilih */}
+<CheckoutDialog
+  product={product}
+  defaultVariantId={variantId}
+  disabled={Number(chosen.stock || 0) <= 0}
+  label={Number(chosen.stock || 0) <= 0 ? "Habis" : "Lanjutkan"}
+  className="w-full btn-brand rounded-2xl h-11"
+  triggerVariant="default"
+/>
               </div>
 
               <div className="mt-3 text-xs text-subtle">
