@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { openAdminSSE } from "@/lib/sse-admin";
 import { toast } from "sonner";
@@ -28,16 +28,16 @@ export default function AdminInvoices() {
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     const qs = new URLSearchParams();
     if (status) qs.set("status", status);
-    if (q) qs.set("q", q);
+    if (q.trim()) qs.set("q", q.trim());
     qs.set("page", "1");
     qs.set("limit", "30");
 
     const r = await apiFetch<any>(`/admin/invoices?${qs.toString()}`, { auth: true });
     setItems(r.data || []);
-  }
+  }, [status, q]);
 
   useEffect(() => {
     (async () => {
@@ -50,7 +50,16 @@ export default function AdminInvoices() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [load]);
+
+  // optional: auto reload saat filter berubah (biar gak harus klik Apply)
+  useEffect(() => {
+    // kalau mau manual saja (klik Apply), hapus effect ini
+    const t = setTimeout(() => {
+      load().catch(() => {});
+    }, 250);
+    return () => clearTimeout(t);
+  }, [status, q, load]);
 
   // realtime refresh throttle
   useEffect(() => {
@@ -59,9 +68,11 @@ export default function AdminInvoices() {
       clearTimeout(t);
       t = setTimeout(() => load().catch(() => {}), 450);
     });
-    return () => { clearTimeout(t); close(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, q]);
+    return () => {
+      clearTimeout(t);
+      close();
+    };
+  }, [load]);
 
   const filteredCount = useMemo(() => items.length, [items]);
 
@@ -96,7 +107,12 @@ export default function AdminInvoices() {
 
           <div className="grid gap-2 lg:col-span-2">
             <label className="text-xs text-subtle">Search</label>
-            <Input className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft" value={q} onChange={(e) => setQ(e.target.value)} placeholder="INV-... / CapCut / ORD-..." />
+            <Input
+              className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="INV-... / CapCut / ORD-..."
+            />
           </div>
 
           <div className="flex items-end">
@@ -120,15 +136,18 @@ export default function AdminInvoices() {
           {items.map((x) => (
             <Link
               key={x.invoiceId}
-              href={`/admin/invoices/${x.invoiceId}`}
+              href={`/admin/invoices/${encodeURIComponent(x.invoiceId)}`}
               className="block rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] px-4 py-3 hover:bg-[rgba(255,255,255,.06)] transition"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-medium truncate">{x.invoiceId}</div>
-                  <div className="text-xs text-subtle truncate">{x.productName} — {x.variantName}</div>
+                  <div className="text-xs text-subtle truncate">
+                    {x.productName} — {x.variantName}
+                  </div>
                   <div className="text-xs text-subtle mt-1 truncate">
-                    Created: {new Date(x.createdAt).toLocaleString("id-ID")} • Exp: {new Date(x.expiresAt).toLocaleString("id-ID")}
+                    Created: {new Date(x.createdAt).toLocaleString("id-ID")} • Exp:{" "}
+                    {new Date(x.expiresAt).toLocaleString("id-ID")}
                   </div>
                 </div>
 
@@ -136,9 +155,7 @@ export default function AdminInvoices() {
                   <div className="font-semibold">Rp {Number(x.payAmount || 0).toLocaleString("id-ID")}</div>
                   <div className="mt-1 flex items-center justify-end gap-2">
                     <StatusBadge status={x.status} />
-                    {x.premifyOrderId ? (
-                      <span className="text-xs text-subtle">#{x.premifyOrderId}</span>
-                    ) : null}
+                    {x.premifyOrderId ? <span className="text-xs text-subtle">#{x.premifyOrderId}</span> : null}
                   </div>
                 </div>
               </div>
@@ -161,7 +178,11 @@ function StatusBadge({ status }: { status: string }) {
     FAILED: "bg-[rgba(239,68,68,.14)] border-[rgba(239,68,68,.25)]",
   };
   return (
-    <span className={`inline-flex items-center rounded-2xl border px-3 py-1 text-xs ${map[status] || "border-soft bg-[rgba(255,255,255,.06)]"}`}>
+    <span
+      className={`inline-flex items-center rounded-2xl border px-3 py-1 text-xs ${
+        map[status] || "border-soft bg-[rgba(255,255,255,.06)]"
+      }`}
+    >
       {status}
     </span>
   );
