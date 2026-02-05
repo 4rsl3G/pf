@@ -1,38 +1,275 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import AdminSidebar from "@/components/layout/AdminSidebar";
-import AdminTopbar from "@/components/layout/AdminTopbar";
-import { getAdminToken } from "@/lib/auth";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { apiFetch } from "@/lib/api";
+import { openAdminSSE } from "@/lib/sse-admin";
+import { toast } from "sonner";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [ready, setReady] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
+import { RefreshCw, Activity, ArrowUpRight } from "lucide-react";
+
+type Summary = {
+  premifyBalance: any;
+  counts: Record<string, number>;
+  totals: { last7d: { omzet: number; profit: number } };
+  recent: any[];
+  serverTime: string;
+};
+
+function moneyIDR(n: any) {
+  const x = Number(n || 0);
+  return `Rp ${x.toLocaleString("id-ID")}`;
+}
+
+export default function AdminDashboard() {
+  const [data, setData] = useState<Summary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const lastReloadRef = useRef<number>(0);
+
+  async function load() {
+    const r = await apiFetch<{ success: true; data: Summary }>("/admin/dashboard/summary", { auth: true });
+    setData(r.data);
+  }
+
+  async function refreshNow(opts?: { silent?: boolean }) {
+    const silent = !!opts?.silent;
+    try {
+      if (!silent) setRefreshing(true);
+      await load();
+    } catch (e: any) {
+      toast.error(e?.error || e?.message || "Gagal load dashboard");
+    } finally {
+      if (!silent) setRefreshing(false);
+    }
+  }
+
+  // initial load
   useEffect(() => {
-    const token = getAdminToken();
-    if (!token && pathname !== "/admin/login") router.replace("/admin/login");
-    setReady(true);
-  }, [pathname, router]);
+    (async () => {
+      try {
+        setLoading(true);
+        await load();
+      } catch (e: any) {
+        toast.error(e?.error || e?.message || "Gagal load dashboard");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-  // auto close drawer on route change
+  // realtime SSE refresh (throttle)
   useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
+    const close = openAdminSSE(async (ev) => {
+      const status = String(ev?.status || "");
+      const shouldRefresh =
+        status === "FULFILLED" ||
+        status === "PAID" ||
+        status.includes("EXPIRED") ||
+        status.includes("FAILED");
 
-  if (!ready) return null;
-  if (pathname === "/admin/login") return <>{children}</>;
+      if (!shouldRefresh) return;
+
+      const now = Date.now();
+      if (now - lastReloadRef.current < 1200) return;
+      lastReloadRef.current = now;
+
+      await refreshNow({ silent: true });
+    });
+
+    return () => close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const balanceText = useMemo(() => {
+    const b = data?.premifyBalance;
+    if (!b) return "-";
+    if (b.error) return `Error: ${b.error}`;
+    const n = Number(b.balance || 0);
+    return `${n.toLocaleString("id-ID")} ${b.currency || "IDR"}`;
+  }, [data?.premifyBalance]);
+
+  const serverTimeText = useMemo(() => {
+    if (!data?.serverTime) return "-";
+    try {
+      return new Date(data.serverTime).toLocaleString("id-ID");
+    } catch {
+      return String(data.serverTime);
+    }
+  }, [data?.serverTime]);
+
+  const pending = data?.counts?.pending ?? 0;
+  const fulfilled = data?.counts?.fulfilled ?? 0;
+  const profit7d = data?.totals?.last7d?.profit ?? 0;
+  const omzet7d = data?.totals?.last7d?.omzet ?? 0;
 
   return (
-    <div className="min-h-dvh grid lg:grid-cols-[280px_1fr] bg-[rgb(var(--bg))]">
-      <AdminSidebar mobileOpen={menuOpen} onClose={() => setMenuOpen(false)} />
-      <div className="min-w-0">
-        <AdminTopbar onMenu={() => setMenuOpen(true)} />
-        <main className="px-4 py-5 lg:px-8">{children}</main>
+    <div className="space-y-4">
+      {/* TOP STRIP */}
+      <div className="rounded-2xl border border-soft bg-white shadow-soft p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-2 text-xs text-subtle">
+              <Activity className="h-4 w-4 text-[rgba(16,185,129,.95)]" />
+              <span>Realtime SSE</span>
+              <span className="opacity-40">•</span>
+              <span className="opacity-80">Server {serverTimeText}</span>
+            </div>
+            <div className="mt-2 text-xl font-semibold tracking-tight">Dashboard</div>
+            <div className="text-sm text-subtle mt-1">Monitor invoice & order dengan update otomatis.</div>
+          </div>
+
+          <Button
+            variant="secondary"
+            className="rounded-2xl bg-black/[0.03] border border-soft hover:bg-black/[0.05]"
+            onClick={() => refreshNow()}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            <span className="ml-2 hidden sm:inline">{refreshing ? "Refreshing" : "Refresh"}</span>
+          </Button>
+        </div>
       </div>
+
+      {/* STATS */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <MiniStat loading={loading} title="Balance" value={balanceText} hint="Premify" />
+        <MiniStat loading={loading} title="Pending" value={String(pending)} hint="Menunggu bayar" />
+        <MiniStat loading={loading} title="Fulfilled" value={String(fulfilled)} hint="Order selesai" />
+        <MiniStat
+          loading={loading}
+          title="Profit 7D"
+          value={moneyIDR(profit7d)}
+          hint={`Omzet ${moneyIDR(omzet7d)}`}
+        />
+      </div>
+
+      {/* RECENT */}
+      <div className="rounded-2xl border border-soft bg-white shadow-soft overflow-hidden">
+        <div className="px-4 py-4 border-b border-soft flex items-center justify-between gap-3">
+          <div>
+            <div className="text-base font-semibold">Recent Orders</div>
+            <div className="text-sm text-subtle">10 invoice terakhir</div>
+          </div>
+
+          <Badge className="rounded-full bg-[rgba(16,185,129,.10)] border border-[rgba(16,185,129,.18)] text-[rgb(var(--brand))]">
+            Live
+          </Badge>
+        </div>
+
+        <div className="p-3">
+          {loading ? (
+            <div className="grid gap-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl border border-soft bg-black/[0.02] px-4 py-3"
+                >
+                  <div className="h-4 w-44 bg-black/10 rounded-xl mb-2" />
+                  <div className="h-3 w-64 bg-black/10 rounded-xl" />
+                </div>
+              ))}
+            </div>
+          ) : !data?.recent?.length ? (
+            <div className="text-sm text-subtle px-1 py-6">Belum ada invoice.</div>
+          ) : (
+            <div className="grid gap-2">
+              {data.recent.map((x) => (
+                <div
+                  key={x.invoiceId}
+                  className="rounded-2xl border border-soft bg-white hover:bg-black/[0.02] transition"
+                >
+                  <div className="px-4 py-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="font-semibold truncate">{x.invoiceId}</div>
+                        <StatusBadge status={String(x.status || "")} />
+                      </div>
+
+                      <div className="text-xs text-subtle mt-1 truncate">
+                        {x.productName} — {x.variantName}
+                      </div>
+
+                      <div className="text-xs text-subtle mt-1">
+                        Nominal{" "}
+                        <span className="font-semibold text-[rgb(var(--brand))]">
+                          {moneyIDR(x.payAmount || 0)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Link
+                      href={`/admin/invoices?invoiceId=${encodeURIComponent(x.invoiceId)}`}
+                      className="shrink-0"
+                    >
+                      <button
+                        type="button"
+                        className="h-10 w-10 rounded-2xl border border-soft bg-white hover:bg-black/[0.03] transition grid place-items-center"
+                        aria-label="Open invoice"
+                      >
+                        <ArrowUpRight className="h-4 w-4" />
+                      </button>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* (optional) legacy card imports kept, but we no longer render Card for Recent */}
+      <Card className="hidden" />
+      <CardHeader className="hidden" />
+      <CardContent className="hidden" />
+      <CardTitle className="hidden" />
+      <CardDescription className="hidden" />
     </div>
+  );
+}
+
+function MiniStat({
+  loading,
+  title,
+  value,
+  hint,
+}: {
+  loading: boolean;
+  title: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-soft bg-white shadow-soft p-4">
+      <div className="text-xs text-subtle">{title}</div>
+      <div className="mt-2 text-xl font-semibold tracking-tight">{loading ? "…" : value}</div>
+      <div className="text-xs text-subtle mt-1">{hint}</div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: any = {
+    PENDING: "bg-[rgba(245,158,11,.12)] border-[rgba(245,158,11,.22)] text-[rgba(11,23,18,.92)]",
+    PAID: "bg-[rgba(16,185,129,.12)] border-[rgba(16,185,129,.22)] text-[rgba(11,23,18,.92)]",
+    FULFILLED: "bg-[rgba(16,185,129,.18)] border-[rgba(16,185,129,.30)] text-[rgba(11,23,18,.92)]",
+    EXPIRED: "bg-[rgba(239,68,68,.12)] border-[rgba(239,68,68,.22)] text-[rgba(11,23,18,.92)]",
+    FAILED: "bg-[rgba(239,68,68,.12)] border-[rgba(239,68,68,.22)] text-[rgba(11,23,18,.92)]",
+  };
+
+  return (
+    <span
+      className={[
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] whitespace-nowrap",
+        map[status] || "border-soft bg-black/[0.03] text-[rgba(11,23,18,.92)]",
+      ].join(" ")}
+    >
+      {status || "-"}
+    </span>
   );
 }
