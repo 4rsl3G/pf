@@ -1,14 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 
-export default function ReceiptPage({ params }: { params: { invoiceId?: string } }) {
+export default function ReceiptPage() {
+  const params = useParams<{ invoiceId?: string }>();
+
   const invoiceIdRaw = useMemo(() => {
-    const v = params?.invoiceId ?? "";
+    const v = (params?.invoiceId ?? "") as string;
     try {
       return decodeURIComponent(v);
     } catch {
@@ -21,14 +25,11 @@ export default function ReceiptPage({ params }: { params: { invoiceId?: string }
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    if (!invoiceIdRaw) return;
-
-    // backend: GET /v1/invoice/:invoiceId/receipt
-    // apiFetch: prefix API_BASE (/v1), jadi path cukup "/invoice/..../receipt"
+  async function load() {
+    // apiFetch kamu sudah pakai API_BASE (/v1), jadi path cukup /invoice/...
     const r = await apiFetch<any>(`/invoice/${invoiceKey}/receipt`);
     setData(r?.data ?? null);
-  }, [invoiceIdRaw, invoiceKey]);
+  }
 
   useEffect(() => {
     (async () => {
@@ -44,112 +45,90 @@ export default function ReceiptPage({ params }: { params: { invoiceId?: string }
         setLoading(false);
       }
     })();
-  }, [invoiceIdRaw, load]);
-
-  const pretty = useMemo(() => safePretty(data), [data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceIdRaw, invoiceKey]);
 
   if (!invoiceIdRaw) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10">
-        <div className="card-glass rounded-2xl p-6 border border-soft">
-          <div className="text-xs text-subtle">Receipt</div>
-          <div className="text-2xl font-semibold">Invoice ID kosong</div>
-          <div className="mt-2 text-sm text-subtle">Buka halaman ini dari link receipt yang benar.</div>
-
-          <div className="mt-6">
+        <Card className="card-glass border-soft rounded-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Invoice ID kosong</CardTitle>
+            <CardDescription className="text-subtle">
+              Buka halaman ini dari link receipt yang benar: <span className="font-mono">/receipt/INV-...</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <Link href="/">
               <Button className="btn-brand rounded-2xl">Kembali ke Store</Button>
             </Link>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10 space-y-4">
+      <div className="mx-auto max-w-3xl px-4 py-10">
         <div className="card-glass rounded-2xl p-6 skeleton h-[240px]" />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 space-y-4">
-      <div className="card-glass rounded-2xl p-6 border border-soft shadow-soft">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <div className="text-xs text-subtle">Receipt</div>
-            <div className="text-2xl font-semibold truncate">{invoiceIdRaw}</div>
-            <div className="text-sm text-subtle mt-1">
-              Data dari endpoint <span className="font-mono">/invoice/:invoiceId/receipt</span>
+    <div className="mx-auto max-w-3xl px-4 py-10">
+      <Card className="card-glass rounded-2xl border-soft shadow-soft">
+        <CardHeader className="space-y-1">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-xs text-subtle">Receipt</div>
+              <div className="text-2xl font-semibold">{invoiceIdRaw}</div>
             </div>
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
-              onClick={() => load().then(() => toast.success("Refreshed")).catch((e: any) => {
-                toast.error(e?.error || e?.message || "Gagal refresh");
-              })}
-            >
-              Refresh
-            </Button>
             <Link href="/">
-              <Button className="btn-brand rounded-2xl">Kembali</Button>
+              <Button className="btn-brand rounded-2xl">Kembali ke Store</Button>
             </Link>
           </div>
-        </div>
+          <CardDescription className="text-subtle">
+            Data dari Premify <span className="font-mono">/transactions</span> (muncul setelah status <b>FULFILLED</b>)
+          </CardDescription>
+        </CardHeader>
 
-        {!data ? (
-          <div className="mt-6 text-sm text-subtle">
-            Receipt belum tersedia (invoice belum <span className="font-medium">FULFILLED</span> atau transaksi belum muncul).
-            Coba klik <span className="font-medium">Refresh</span> beberapa saat lagi.
-          </div>
-        ) : (
-          <div className="mt-6 space-y-3">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="text-sm font-medium">JSON</div>
-              <Button
-                variant="secondary"
-                className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(pretty);
+        <CardContent className="space-y-4">
+          {!data ? (
+            <div className="text-sm text-subtle">
+              Receipt belum tersedia. Coba refresh beberapa saat lagi.
+            </div>
+          ) : (
+            <>
+              <pre className="text-xs bg-[rgba(255,255,255,.06)] border border-soft rounded-2xl p-4 overflow-auto max-h-[520px]">
+                {JSON.stringify(data, null, 2)}
+              </pre>
+
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant="secondary"
+                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
+                  onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
                     toast.success("Disalin");
-                  } catch {
-                    toast.error("Gagal copy (izin clipboard)");
-                  }
-                }}
-              >
-                Copy JSON
-              </Button>
-            </div>
+                  }}
+                >
+                  Copy JSON
+                </Button>
 
-            <pre className="text-xs bg-[rgba(255,255,255,.06)] border border-soft rounded-2xl p-4 overflow-auto max-h-[520px] whitespace-pre-wrap break-words">
-              {pretty}
-            </pre>
-
-            <div className="text-xs text-subtle">
-              Jika kosong terus padahal sudah bayar, cek admin: klik <span className="font-medium">Refetch Receipt</span>.
-            </div>
-          </div>
-        )}
-      </div>
+                <Button
+                  variant="secondary"
+                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
+                  onClick={() => load().catch(() => {})}
+                >
+                  Refresh
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
-}
-
-function safePretty(x: any) {
-  try {
-    if (x == null) return "";
-    if (typeof x === "string") {
-      const j = JSON.parse(x);
-      return JSON.stringify(j, null, 2);
-    }
-    return JSON.stringify(x, null, 2);
-  } catch {
-    return String(x);
-  }
 }
