@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { openAdminSSE } from "@/lib/sse-admin";
 import { toast } from "sonner";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+
 import { RefreshCw, Activity, ArrowUpRight } from "lucide-react";
-import Link from "next/link";
 
 type Summary = {
   premifyBalance: any;
@@ -47,6 +49,7 @@ export default function AdminDashboard() {
     }
   }
 
+  // initial load
   useEffect(() => {
     (async () => {
       try {
@@ -60,11 +63,15 @@ export default function AdminDashboard() {
     })();
   }, []);
 
+  // realtime SSE refresh (throttle)
   useEffect(() => {
     const close = openAdminSSE(async (ev) => {
       const status = String(ev?.status || "");
       const shouldRefresh =
-        status === "FULFILLED" || status === "PAID" || status.includes("EXPIRED") || status.includes("FAILED");
+        status === "FULFILLED" ||
+        status === "PAID" ||
+        status.includes("EXPIRED") ||
+        status.includes("FAILED");
 
       if (!shouldRefresh) return;
 
@@ -74,6 +81,7 @@ export default function AdminDashboard() {
 
       await refreshNow({ silent: true });
     });
+
     return () => close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -113,9 +121,7 @@ export default function AdminDashboard() {
               <span className="opacity-80">Server {serverTimeText}</span>
             </div>
             <div className="mt-2 text-xl font-semibold tracking-tight">Dashboard</div>
-            <div className="text-sm text-subtle mt-1">
-              Monitor invoice & order dengan update otomatis.
-            </div>
+            <div className="text-sm text-subtle mt-1">Monitor invoice & order dengan update otomatis.</div>
           </div>
 
           <Button
@@ -130,26 +136,11 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* STATS (COMPACT) */}
+      {/* STATS */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <MiniStat
-          loading={loading}
-          title="Balance"
-          value={balanceText}
-          hint="Premify"
-        />
-        <MiniStat
-          loading={loading}
-          title="Pending"
-          value={String(pending)}
-          hint="Menunggu bayar"
-        />
-        <MiniStat
-          loading={loading}
-          title="Fulfilled"
-          value={String(fulfilled)}
-          hint="Order selesai"
-        />
+        <MiniStat loading={loading} title="Balance" value={balanceText} hint="Premify" />
+        <MiniStat loading={loading} title="Pending" value={String(pending)} hint="Menunggu bayar" />
+        <MiniStat loading={loading} title="Fulfilled" value={String(fulfilled)} hint="Order selesai" />
         <MiniStat
           loading={loading}
           title="Profit 7D"
@@ -159,61 +150,85 @@ export default function AdminDashboard() {
       </div>
 
       {/* RECENT */}
-      <Card className="rounded-2xl border border-soft bg-white shadow-soft">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">Recent Orders</CardTitle>
-              <CardDescription className="text-subtle">10 invoice terakhir</CardDescription>
-            </div>
-            <Badge className="rounded-2xl bg-[rgba(16,185,129,.10)] border border-[rgba(16,185,129,.18)] text-[rgb(var(--brand))]">
-              Live
-            </Badge>
+      <div className="rounded-2xl border border-soft bg-white shadow-soft overflow-hidden">
+        <div className="px-4 py-4 border-b border-soft flex items-center justify-between gap-3">
+          <div>
+            <div className="text-base font-semibold">Recent Orders</div>
+            <div className="text-sm text-subtle">10 invoice terakhir</div>
           </div>
-        </CardHeader>
 
-        <CardContent>
+          <Badge className="rounded-full bg-[rgba(16,185,129,.10)] border border-[rgba(16,185,129,.18)] text-[rgb(var(--brand))]">
+            Live
+          </Badge>
+        </div>
+
+        <div className="p-3">
           {loading ? (
             <div className="grid gap-2">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-soft bg-black/[0.02] px-4 py-3">
-                  <div className="h-4 w-40 bg-black/10 rounded-xl mb-2" />
+                <div
+                  key={i}
+                  className="rounded-2xl border border-soft bg-black/[0.02] px-4 py-3"
+                >
+                  <div className="h-4 w-44 bg-black/10 rounded-xl mb-2" />
                   <div className="h-3 w-64 bg-black/10 rounded-xl" />
                 </div>
               ))}
             </div>
           ) : !data?.recent?.length ? (
-            <div className="text-sm text-subtle">Belum ada invoice.</div>
+            <div className="text-sm text-subtle px-1 py-6">Belum ada invoice.</div>
           ) : (
             <div className="grid gap-2">
               {data.recent.map((x) => (
-                <div key={x.invoiceId} className="rounded-2xl border border-soft bg-black/[0.02] px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
+                <div
+                  key={x.invoiceId}
+                  className="rounded-2xl border border-soft bg-white hover:bg-black/[0.02] transition"
+                >
+                  <div className="px-4 py-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="font-semibold truncate">{x.invoiceId}</div>
-                        <StatusBadge status={x.status} />
+                        <StatusBadge status={String(x.status || "")} />
                       </div>
+
                       <div className="text-xs text-subtle mt-1 truncate">
                         {x.productName} — {x.variantName}
                       </div>
+
                       <div className="text-xs text-subtle mt-1">
-                        Nominal <span className="font-semibold">{moneyIDR(x.payAmount || 0)}</span>
+                        Nominal{" "}
+                        <span className="font-semibold text-[rgb(var(--brand))]">
+                          {moneyIDR(x.payAmount || 0)}
+                        </span>
                       </div>
                     </div>
 
-                    <Link href={`/admin/invoices?invoiceId=${encodeURIComponent(x.invoiceId)}`} className="shrink-0">
-                      <Button className="btn-soft rounded-2xl">
+                    <Link
+                      href={`/admin/invoices?invoiceId=${encodeURIComponent(x.invoiceId)}`}
+                      className="shrink-0"
+                    >
+                      <button
+                        type="button"
+                        className="h-10 w-10 rounded-2xl border border-soft bg-white hover:bg-black/[0.03] transition grid place-items-center"
+                        aria-label="Open invoice"
+                      >
                         <ArrowUpRight className="h-4 w-4" />
-                      </Button>
+                      </button>
                     </Link>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      {/* (optional) legacy card imports kept, but we no longer render Card for Recent */}
+      <Card className="hidden" />
+      <CardHeader className="hidden" />
+      <CardContent className="hidden" />
+      <CardTitle className="hidden" />
+      <CardDescription className="hidden" />
     </div>
   );
 }
@@ -251,10 +266,10 @@ function StatusBadge({ status }: { status: string }) {
     <span
       className={[
         "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] whitespace-nowrap",
-        map[status] || "border-soft bg-black/[0.03]",
+        map[status] || "border-soft bg-black/[0.03] text-[rgba(11,23,18,.92)]",
       ].join(" ")}
     >
-      {status}
+      {status || "-"}
     </span>
   );
 }
