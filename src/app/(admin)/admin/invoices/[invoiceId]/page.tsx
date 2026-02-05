@@ -7,15 +7,16 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-export default function AdminInvoiceDetail({ params }: { params: { invoiceId: string } }) {
+export default function AdminInvoiceDetail({ params }: { params: { invoiceId?: string } }) {
   // params dari URL bisa ter-encode (mis: INV%2F2026%2F001)
   const invoiceIdRaw = useMemo(() => {
+    const v = params?.invoiceId ?? "";
     try {
-      return decodeURIComponent(params.invoiceId || "");
+      return decodeURIComponent(v);
     } catch {
-      return params.invoiceId || "";
+      return v;
     }
-  }, [params.invoiceId]);
+  }, [params?.invoiceId]);
 
   // untuk dipakai di URL API
   const invoiceKey = useMemo(() => encodeURIComponent(invoiceIdRaw), [invoiceIdRaw]);
@@ -24,15 +25,22 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  const disableActions = busy || loading;
+
   const load = useCallback(async () => {
+    if (!invoiceIdRaw) return; // GUARD: jangan kirim request invalid
     const r = await apiFetch<any>(`/admin/invoices/${invoiceKey}`, { auth: true });
     setInv(r.data ?? null);
-  }, [invoiceKey]);
+  }, [invoiceIdRaw, invoiceKey]);
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
+        if (!invoiceIdRaw) {
+          setInv(null);
+          return;
+        }
         await load();
       } catch (e: any) {
         setInv(null);
@@ -41,9 +49,10 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
         setLoading(false);
       }
     })();
-  }, [load]);
+  }, [invoiceIdRaw, load]);
 
   async function retryFulfill() {
+    if (!invoiceIdRaw) return toast.error("Invoice ID kosong");
     try {
       setBusy(true);
       const r = await apiFetch<any>(`/admin/invoices/${invoiceKey}/retry-fulfill`, { method: "POST", auth: true });
@@ -57,6 +66,7 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
   }
 
   async function refetchReceipt() {
+    if (!invoiceIdRaw) return toast.error("Invoice ID kosong");
     try {
       setBusy(true);
       await apiFetch<any>(`/admin/invoices/${invoiceKey}/refetch-receipt`, { method: "POST", auth: true });
@@ -70,6 +80,7 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
   }
 
   async function expire() {
+    if (!invoiceIdRaw) return toast.error("Invoice ID kosong");
     try {
       setBusy(true);
       await apiFetch<any>(`/admin/invoices/${invoiceKey}/expire`, { method: "POST", auth: true });
@@ -86,20 +97,43 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
     ? `${API_BASE.replace(/\/v1$/, "")}/qris/payment/${encodeURIComponent(inv.publicToken)}?t=${Date.now()}`
     : null;
 
-  const disableActions = busy || loading;
+  // Jika param kosong, tampilkan UI yang jelas (dan tidak menembak API)
+  if (!invoiceIdRaw) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm text-subtle">Invoice Detail</div>
+            <div className="text-2xl font-semibold">Invoice ID kosong</div>
+          </div>
+          <Link href="/admin/invoices">
+            <Button variant="secondary" className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft">
+              Back
+            </Button>
+          </Link>
+        </div>
+
+        <Card className="card-glass border-soft rounded-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">URL tidak valid</CardTitle>
+            <CardDescription className="text-subtle">
+              Buka detail invoice melalui halaman list agar parameter terisi dengan benar.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <div className="text-sm text-subtle">Invoice Detail</div>
-          <div className="text-2xl font-semibold">{invoiceIdRaw || "-"}</div>
+          <div className="text-2xl font-semibold">{invoiceIdRaw}</div>
         </div>
         <Link href="/admin/invoices">
-          <Button
-            variant="secondary"
-            className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
-          >
+          <Button variant="secondary" className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft">
             Back
           </Button>
         </Link>
@@ -115,12 +149,6 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
               Key: <span className="font-mono">{invoiceIdRaw}</span>
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-sm text-subtle">
-              Biasanya ini terjadi karena invoiceId mengandung karakter khusus dan URL tidak di-encode.
-              Setelah update list + detail page (encode/decode), ini harusnya beres.
-            </div>
-          </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
@@ -138,9 +166,9 @@ export default function AdminInvoiceDetail({ params }: { params: { invoiceId: st
               <Row k="Markup" v={`Rp ${Number(inv.markup || 0).toLocaleString("id-ID")}`} />
               <Row k="Premify Order" v={inv.premifyOrderId || "-"} />
               <Row k="Matched Tx" v={inv.matchedTxId || "-"} />
-              <Row k="Created" v={new Date(inv.createdAt).toLocaleString("id-ID")} />
-              <Row k="Expires" v={new Date(inv.expiresAt).toLocaleString("id-ID")} />
-              <Row k="PaidAt" v={inv.paidAt ? new Date(inv.paidAt).toLocaleString("id-ID") : "-"} />
+              <Row k="Created" v={fmtDate(inv.createdAt)} />
+              <Row k="Expires" v={fmtDate(inv.expiresAt)} />
+              <Row k="PaidAt" v={inv.paidAt ? fmtDate(inv.paidAt) : "-"} />
 
               <div className="flex gap-2 flex-wrap pt-2">
                 <Button className="btn-brand rounded-2xl" onClick={retryFulfill} disabled={disableActions}>
@@ -204,6 +232,16 @@ function Row({ k, v }: { k: string; v: string }) {
       <div className="font-medium">{v}</div>
     </div>
   );
+}
+
+// iOS Safari ketat; bikin parsing tanggal lebih aman
+function fmtDate(v: any) {
+  if (!v) return "-";
+  // dukung "2026-02-05 12:34:56" -> "2026-02-05T12:34:56"
+  const s = String(v);
+  const iso = s.includes("T") ? s : s.replace(" ", "T");
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleString("id-ID");
 }
 
 function safePretty(x: any) {
