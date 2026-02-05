@@ -52,16 +52,15 @@ export default function AdminInvoices() {
     })();
   }, [load]);
 
-  // optional: auto reload saat filter berubah (biar gak harus klik Apply)
+  // optional: auto reload saat filter berubah
   useEffect(() => {
-    // kalau mau manual saja (klik Apply), hapus effect ini
     const t = setTimeout(() => {
       load().catch(() => {});
     }, 250);
     return () => clearTimeout(t);
   }, [status, q, load]);
 
-  // realtime refresh throttle
+  // realtime refresh throttle (SSE)
   useEffect(() => {
     let t: any = null;
     const close = openAdminSSE(() => {
@@ -146,8 +145,7 @@ export default function AdminInvoices() {
                     {x.productName} — {x.variantName}
                   </div>
                   <div className="text-xs text-subtle mt-1 truncate">
-                    Created: {new Date(x.createdAt).toLocaleString("id-ID")} • Exp:{" "}
-                    {new Date(x.expiresAt).toLocaleString("id-ID")}
+                    Created: {fmtDate(x.createdAt)} • Exp: {fmtDate(x.expiresAt)}
                   </div>
                 </div>
 
@@ -186,4 +184,13 @@ function StatusBadge({ status }: { status: string }) {
       {status}
     </span>
   );
+}
+
+// safer date parsing (Safari/iOS friendly)
+function fmtDate(v: any) {
+  if (!v) return "-";
+  const s = String(v);
+  const iso = s.includes("T") ? s : s.replace(" ", "T");
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleString("id-ID");
 }
