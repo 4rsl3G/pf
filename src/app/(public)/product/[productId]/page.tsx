@@ -140,17 +140,15 @@ export default function ProductDetailPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <div className="grid gap-6 lg:grid-cols-[1fr_.92fr] items-start">
-        {/* LEFT: Product hero */}
+        {/* LEFT */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <div className="relative card-glass rounded-2xl border-soft shadow-soft overflow-hidden">
-            {/* soft highlight */}
-            <div className="pointer-events-none absolute inset-0 opacity-100">
+            <div className="pointer-events-none absolute inset-0">
               <div className="absolute inset-0 bg-[radial-gradient(900px_circle_at_10%_0%,rgba(16,185,129,.12),transparent_45%)]" />
             </div>
 
             <div className="p-6 relative">
               <div className="flex items-start gap-5">
-                {/* logo */}
                 <div className="h-16 w-16 rounded-2xl overflow-hidden border border-soft bg-[rgba(255,255,255,.06)] shrink-0 grid place-items-center">
                   {img ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -185,12 +183,9 @@ export default function ProductDetailPage() {
                   </div>
 
                   {product.description ? (
-                    <p className="mt-3 text-subtle leading-relaxed">
-                      {product.description}
-                    </p>
+                    <p className="mt-3 text-subtle leading-relaxed">{product.description}</p>
                   ) : null}
 
-                  {/* quick stats */}
                   <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] p-4">
                       <div className="text-xs text-dim">Mulai dari</div>
@@ -200,36 +195,26 @@ export default function ProductDetailPage() {
                     </div>
                     <div className="rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] p-4">
                       <div className="text-xs text-dim">Varian</div>
-                      <div className="mt-1 font-extrabold">
-                        {product.variants?.length || 0}
-                      </div>
+                      <div className="mt-1 font-extrabold">{product.variants?.length || 0}</div>
                     </div>
                     <div className="rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] p-4">
-                      <div className="text-xs text-dim">Pilihan</div>
-                      <div className="mt-1 font-extrabold">
-                        {product.category || "Digital"}
-                      </div>
+                      <div className="text-xs text-dim">Kategori</div>
+                      <div className="mt-1 font-extrabold">{product.category || "Digital"}</div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* divider */}
               <div className="mt-6 divider-soft" />
-
               <div className="mt-5 text-xs text-subtle">
-                Pilih varian sesuai kebutuhan, lalu lanjutkan checkout.
+                Pilih varian yang sesuai, lalu lanjutkan checkout.
               </div>
             </div>
           </div>
         </motion.div>
 
-        {/* RIGHT: Checkout card (sticky desktop) */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="lg:sticky lg:top-20"
-        >
+        {/* RIGHT */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="lg:sticky lg:top-20">
           <div className="card-glass rounded-2xl p-6 border-soft shadow-soft">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -255,6 +240,7 @@ export default function ProductDetailPage() {
                       active
                         ? "border-[rgba(16,185,129,.45)] bg-[rgba(16,185,129,.10)]"
                         : "border-soft bg-[rgba(255,255,255,.04)] hover:bg-[rgba(255,255,255,.06)]",
+                      sold ? "opacity-70" : "",
                     ].join(" ")}
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -292,27 +278,21 @@ export default function ProductDetailPage() {
 
             <div className="mt-5 rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] p-4">
               <div className="text-xs text-dim">Total</div>
-              <div className="mt-1 text-2xl font-extrabold">
-                {formatIDR(chosen.price)}
-              </div>
+              <div className="mt-1 text-2xl font-extrabold">{formatIDR(chosen.price)}</div>
 
               <div className="mt-4">
-                {/* gunakan dialog checkout (Mode B) */}
                 <CheckoutDialog
-                  product={{
-                    ...product,
-                    // pastikan variants tetap ada
-                    variants: product.variants,
-                  }}
-                  label={Number(chosen.stock || 0) <= 0 ? "Habis" : "Lanjutkan"}
+                  product={product}
+                  defaultVariantId={variantId}   {/* ✅ sync varian terpilih */}
                   disabled={Number(chosen.stock || 0) <= 0}
+                  label={Number(chosen.stock || 0) <= 0 ? "Habis" : "Lanjutkan"}
                   className="w-full btn-brand rounded-2xl h-11"
                   triggerVariant="default"
                 />
               </div>
 
               <div className="mt-3 text-xs text-subtle">
-                Setelah invoice dibuat, lanjutkan pembayaran dari halaman checkout.
+                Lanjutkan untuk membuat invoice dan pembayaran.
               </div>
             </div>
           </div>
