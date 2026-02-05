@@ -1,38 +1,55 @@
 @import "tailwindcss";
 
 /* =========================
-   Pansa Store — Global Styles
+   Pansa Store — Global Styles (Elegant v2)
    Tailwind v4 + Custom Tokens
-   Dark Green Premium Theme (No gradient background)
+   Dark Green Premium Theme (no flat gradient background)
+   Focus: cleaner spacing, better contrast, iOS-safe blur, less “muddy”
    ========================= */
 
-/* ===== Brand Tokens ===== */
-:root {
+/* ===== Tokens ===== */
+:root{
+  /* surfaces */
   --bg: 7 12 10;          /* near-black green */
+  --bg-2: 8 16 13;        /* alt surface */
   --card: 10 18 14;       /* card base */
-  --muted: 14 25 19;      /* muted blocks */
+  --muted: 13 24 18;      /* muted block */
 
+  /* text */
   --text: 236 253 245;    /* emerald-50-ish */
   --subtext: 167 243 208; /* emerald-200 */
+  --dim: 110 186 160;     /* calmer */
 
+  /* brand */
   --brand: 6 78 59;       /* emerald-900 */
   --brand-2: 16 185 129;  /* emerald-500 */
 
+  /* system */
   --ring: 16 185 129;
   --border: 24 46 36;
 
   --danger: 239 68 68;
   --warn: 245 158 11;
 
-  /* radius tokens */
-  --r-xl: 1rem;     /* ~rounded-2xl */
-  --r-lg: .875rem;  /* ~rounded-xl */
+  /* radius (more consistent) */
+  --r-3xl: 1.25rem;   /* 20px */
+  --r-2xl: 1rem;      /* 16px */
+  --r-xl: .875rem;    /* 14px */
+
+  /* shadows (softer, less heavy) */
+  --shadow-1: 0 0 0 1px rgba(255,255,255,.03), 0 18px 60px rgba(0,0,0,.40);
+  --shadow-2: 0 0 0 1px rgba(16,185,129,.10), 0 24px 90px rgba(0,0,0,.48);
+
+  /* hairline */
+  --hair: rgba(255,255,255,.06);
+  --hair-2: rgba(255,255,255,.08);
 }
 
 /* ===== Base ===== */
-html,
-body {
+html, body {
   height: 100%;
+  width: 100%;
+  overflow-x: hidden; /* iOS blur + motion = sering geser */
 }
 
 body {
@@ -44,25 +61,35 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* reduce iOS weird overscroll highlight */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
 ::selection {
   background: rgba(16, 185, 129, .22);
   color: rgb(var(--text));
 }
 
-/* Improve focus visibility */
+/* ===== Links ===== */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ===== Focus ===== */
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px rgba(var(--ring), .18);
+  box-shadow: 0 0 0 4px rgba(var(--ring), .16);
   border-radius: 12px;
 }
 
-/* ===== Optional background accent (subtle, no gradient feel) ===== */
+/* ===== Subtle background accent (NO “wall gradient”, just spotlights) ===== */
 .bg-noise {
   background-image:
-    radial-gradient(circle at 12% 10%, rgba(16,185,129,.10), transparent 38%),
-    radial-gradient(circle at 86% 22%, rgba(6,78,59,.22), transparent 42%),
-    radial-gradient(circle at 40% 88%, rgba(16,185,129,.08), transparent 40%),
-    linear-gradient(to bottom, rgba(255,255,255,.02), transparent 36%);
+    radial-gradient(600px circle at 12% 8%, rgba(16,185,129,.10), transparent 55%),
+    radial-gradient(700px circle at 88% 18%, rgba(6,78,59,.18), transparent 60%),
+    radial-gradient(680px circle at 46% 92%, rgba(16,185,129,.08), transparent 55%);
 }
 
 /* ===== Containers ===== */
@@ -72,88 +99,64 @@ body {
   margin-inline: auto;
   padding-inline: 1rem;
 }
-
-.container-wide {
-  width: 100%;
-  max-width: 80rem; /* 1280px */
-  margin-inline: auto;
-  padding-inline: 1rem;
+@media (min-width: 640px) {
+  .container-page { padding-inline: 1.25rem; }
 }
 
 /* ===== Typography helpers ===== */
-.text-subtle {
-  color: rgba(var(--subtext), .80);
-}
-.text-dim {
-  color: rgba(var(--subtext), .62);
-}
+.text-subtle { color: rgba(var(--subtext), .82); }
+.text-dim { color: rgba(var(--dim), .74); }
+
 .kicker {
-  letter-spacing: .06em;
+  letter-spacing: .08em;
   text-transform: uppercase;
   font-size: .72rem;
-  color: rgba(var(--subtext), .70);
+  color: rgba(var(--dim), .78);
 }
 
 .price-big {
-  font-size: 1.5rem; /* 24px */
-  line-height: 1.15;
-  font-weight: 700;
+  font-size: 1.6rem;
+  line-height: 1.1;
+  font-weight: 750;
   letter-spacing: -0.02em;
 }
 
-/* ===== Borders / Dividers ===== */
-.border-soft {
-  border-color: rgba(var(--border), .92);
-}
+/* ===== Borders / dividers ===== */
+.border-soft { border-color: rgba(var(--border), .92); }
+.divider-soft { height: 1px; background: var(--hair); }
 
-.divider-soft {
-  height: 1px;
-  background: rgba(255,255,255,.06);
-}
-
-/* ===== Shadows ===== */
-.shadow-soft {
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,.02),
-    0 18px 60px rgba(0,0,0,.45);
-}
-
-.shadow-pop {
-  box-shadow:
-    0 0 0 1px rgba(16,185,129,.10),
-    0 26px 90px rgba(0,0,0,.52);
-}
-
-/* ===== Glass Card (solid-ish) ===== */
+/* ===== Cards =====
+   IMPORTANT: blur on iOS can cause overflow/paint issues.
+   We keep it subtle, and ensure overflow hidden at component-level as needed.
+*/
 .card-glass {
-  background: rgba(var(--card), .90);
+  background: rgba(var(--card), .88);
   border: 1px solid rgba(var(--border), .92);
+  border-radius: var(--r-3xl);
+  box-shadow: var(--shadow-1);
+
+  /* iOS-safe blur: keep modest */
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-  border-radius: var(--r-xl);
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,.02),
-    0 20px 70px rgba(0,0,0,.42);
 }
 
 .card-muted {
-  background: rgba(var(--muted), .55);
+  background: rgba(var(--muted), .60);
   border: 1px solid rgba(var(--border), .86);
-  border-radius: var(--r-xl);
+  border-radius: var(--r-3xl);
 }
 
-/* Hover lift */
+/* Lift (elegant, not too “floating”) */
 .card-hover {
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 .card-hover:hover {
   transform: translateY(-2px);
-  border-color: rgba(16,185,129,.28);
-  box-shadow:
-    0 0 0 1px rgba(16,185,129,.10),
-    0 26px 90px rgba(0,0,0,.52);
+  border-color: rgba(16,185,129,.26);
+  box-shadow: var(--shadow-2);
 }
 
-/* Hover glow (use inside relative parent) */
+/* Hover glow (inside .group relative parent) */
 .hover-glow {
   pointer-events: none;
   position: absolute;
@@ -161,21 +164,29 @@ body {
   opacity: 0;
   transition: opacity .18s ease;
 }
-.group:hover .hover-glow {
-  opacity: 1;
-}
+.group:hover .hover-glow { opacity: 1; }
 .hover-glow::before {
   content: "";
   position: absolute;
-  inset: 0;
-  background: radial-gradient(700px circle at 20% 0%, rgba(16,185,129,.14), transparent 45%);
+  inset: -1px;
+  background:
+    radial-gradient(700px circle at 18% 0%, rgba(16,185,129,.14), transparent 50%),
+    radial-gradient(900px circle at 90% 10%, rgba(6,78,59,.18), transparent 60%);
+}
+
+/* ===== Header glass ===== */
+.header-glass {
+  background: rgba(7,12,10,.78);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 /* ===== Logo slot ===== */
 .logo-slot {
   background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: var(--r-xl);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: var(--r-3xl);
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -190,44 +201,45 @@ body {
 /* ===== Badges ===== */
 .badge-soft {
   background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.08);
-  color: rgba(var(--subtext), .88);
-  border-radius: .9rem;
+  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(var(--subtext), .90);
+  border-radius: 999px;
 }
 
 .badge-success {
   background: rgba(16,185,129,.10);
   border: 1px solid rgba(16,185,129,.22);
-  color: rgba(167,243,208,.95);
-  border-radius: .9rem;
+  color: rgba(167,243,208,.96);
+  border-radius: 999px;
 }
 
 .badge-danger {
   background: rgba(239,68,68,.10);
   border: 1px solid rgba(239,68,68,.22);
-  color: rgba(254,202,202,.95);
-  border-radius: .9rem;
+  color: rgba(254,202,202,.96);
+  border-radius: 999px;
 }
 
-/* ===== Buttons ===== */
+/* ===== Buttons =====
+   More “premium”: tighter, clear hover, subtle shine, no gradient.
+*/
 .btn-brand {
   background: rgb(var(--brand));
   color: rgb(var(--text));
   border: 1px solid rgba(16,185,129,.22);
-  border-radius: var(--r-xl);
-  box-shadow: 0 10px 30px rgba(0,0,0,.30);
-  transition: transform .12s ease, background .15s ease, box-shadow .15s ease, border-color .15s ease;
+  border-radius: var(--r-3xl);
+  box-shadow: 0 10px 26px rgba(0,0,0,.30);
+  transition: transform .12s ease, background .15s ease, box-shadow .15s ease, border-color .15s ease, filter .15s ease;
 }
 
 .btn-brand:hover {
   background: rgb(5 62 47);
   border-color: rgba(16,185,129,.30);
   box-shadow: 0 14px 40px rgba(0,0,0,.42);
+  filter: saturate(1.05);
 }
 
-.btn-brand:active {
-  transform: translateY(1px);
-}
+.btn-brand:active { transform: translateY(1px); }
 
 .btn-brand:disabled {
   opacity: .55;
@@ -236,66 +248,72 @@ body {
   box-shadow: none;
 }
 
+/* elegant secondary */
 .btn-ghost {
   background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
   color: rgb(var(--text));
-  border-radius: var(--r-xl);
-  transition: background .15s ease, border-color .15s ease;
+  border-radius: var(--r-3xl);
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
 .btn-ghost:hover {
   background: rgba(255,255,255,.09);
-  border-color: rgba(16,185,129,.20);
+  border-color: rgba(16,185,129,.18);
+  box-shadow: 0 10px 26px rgba(0,0,0,.20);
 }
 
 /* ===== Inputs ===== */
 .input-glass {
   background: rgba(255,255,255,.05);
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: var(--r-xl);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: var(--r-3xl);
   color: rgb(var(--text));
   outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
 .input-glass:focus {
-  border-color: rgba(16,185,129,.30);
-  box-shadow: 0 0 0 4px rgba(16,185,129,.14);
+  background: rgba(255,255,255,.06);
+  border-color: rgba(16,185,129,.28);
+  box-shadow: 0 0 0 4px rgba(16,185,129,.12);
 }
 
-/* ===== Shimmer Skeleton ===== */
+/* ===== Images ===== */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ===== Skeleton (smoother, less “stripy”) ===== */
 .skeleton {
   position: relative;
   overflow: hidden;
   background: rgba(255,255,255,.06);
   border: 1px solid rgba(255,255,255,.08);
-  border-radius: var(--r-xl);
+  border-radius: var(--r-3xl);
 }
 .skeleton::after {
   content: "";
   position: absolute;
   inset: 0;
-  width: 50%;
-  transform: translateX(-40%);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent);
-  animation: shimmer 1.2s ease-in-out infinite;
+  transform: translateX(-60%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+  animation: shimmer 1.15s ease-in-out infinite;
 }
-
 @keyframes shimmer {
-  0% { transform: translateX(-40%); }
-  100% { transform: translateX(140%); }
+  0% { transform: translateX(-60%); }
+  100% { transform: translateX(160%); }
 }
 
-/* ===== Scrollbar (optional, subtle) ===== */
+/* ===== Scrollbar (subtle) ===== */
 @media (pointer: fine) {
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb {
     background: rgba(255,255,255,.10);
     border-radius: 999px;
-    border: 2px solid rgba(7,12,10,.9);
+    border: 2px solid rgba(7,12,10,.90);
   }
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(16,185,129,.20);
-  }
-  ::-webkit-scrollbar-track { background: rgba(7,12,10,.6); }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(16,185,129,.18); }
+  ::-webkit-scrollbar-track { background: rgba(7,12,10,.60); }
 }
 
 /* ===== Utilities ===== */
@@ -305,7 +323,6 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-
 .line-clamp-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -313,11 +330,14 @@ body {
   overflow: hidden;
 }
 
-/* Smooth animation for small UI */
+/* Prevent “weird width” in some components */
+.safe-w {
+  min-width: 0;
+}
+
+/* Nice subtle motion without layout shift */
 @media (prefers-reduced-motion: no-preference) {
-  .fade-in {
-    animation: fadein .25s ease-out both;
-  }
+  .fade-in { animation: fadein .22s ease-out both; }
   @keyframes fadein {
     from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
