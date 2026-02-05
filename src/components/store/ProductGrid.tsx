@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export type Variant = {
@@ -23,8 +22,6 @@ export type Product = {
   description?: string;
   image?: string | null;
   variants: Variant[];
-
-  // optional kalau page kamu sudah compute:
   minPrice?: number;
   totalStock?: number;
 };
@@ -36,7 +33,7 @@ type Props = {
 
 function formatIDR(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" })
-    .format(n)
+    .format(Number(n || 0))
     .replace(",00", "");
 }
 
@@ -70,18 +67,18 @@ export default function ProductGrid({ loading = false, products }: Props) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 9 }).map((_, i) => (
-          <div key={i} className="card-glass rounded-2xl p-5 border-soft">
-            <div className="flex gap-4">
-              <Skeleton className="h-14 w-14 rounded-2xl" />
-              <div className="flex-1">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="h-3 w-24 mt-2" />
-              </div>
+          <div key={i} className="card-glass border-soft overflow-hidden">
+            <div className="aspect-[4/3]">
+              <Skeleton className="h-full w-full rounded-none" />
             </div>
-            <Skeleton className="h-12 w-full mt-4 rounded-xl" />
-            <div className="mt-4 flex items-center justify-between">
-              <Skeleton className="h-6 w-24" />
-              <Skeleton className="h-9 w-24 rounded-xl" />
+            <div className="p-5">
+              <Skeleton className="h-4 w-56" />
+              <Skeleton className="h-3 w-40 mt-2" />
+              <Skeleton className="h-10 w-full mt-4 rounded-2xl" />
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <Skeleton className="h-10 w-full rounded-2xl" />
+                <Skeleton className="h-10 w-full rounded-2xl" />
+              </div>
             </div>
           </div>
         ))}
@@ -91,7 +88,7 @@ export default function ProductGrid({ loading = false, products }: Props) {
 
   if (!products?.length) {
     return (
-      <div className="card-glass rounded-2xl p-6 border-soft text-sm text-subtle">
+      <div className="card-glass p-6 border-soft text-sm text-subtle">
         Produk belum tersedia.
       </div>
     );
@@ -103,79 +100,113 @@ export default function ProductGrid({ loading = false, products }: Props) {
         const price = minPrice(p);
         const stock = totalStock(p);
         const img = resolveProductImage(p.image);
+        const soldOut = stock <= 0;
 
         return (
           <motion.div
             key={p.id}
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: Math.min(idx * 0.03, 0.25) }}
-            className="group relative card-glass rounded-2xl border-soft shadow-soft overflow-hidden"
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-10%" }}
+            transition={{ delay: Math.min(idx * 0.02, 0.18) }}
+            className="group card-glass border-soft shadow-soft card-hover overflow-hidden relative"
           >
-            <div className="p-5">
-              <div className="flex items-start gap-4">
-                <div className="h-14 w-14 rounded-2xl border border-soft bg-[rgba(255,255,255,.06)] overflow-hidden shrink-0 grid place-items-center">
-                  {img ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={img} alt={p.name} className="w-full h-full object-cover block" />
-                  ) : (
-                    <div className="text-xs text-subtle">APP</div>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold leading-tight truncate">{p.name}</h3>
-                    {p.category ? (
-                      <Badge className="hidden sm:inline-flex rounded-xl bg-[rgba(255,255,255,.06)] border-soft text-[11px]">
-                        {p.category}
-                      </Badge>
-                    ) : null}
+            {/* Cover */}
+            <div className="relative">
+              <div className="aspect-[4/3] w-full bg-[rgba(2,6,23,.04)] overflow-hidden">
+                {img ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={img}
+                    alt={p.name}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="h-full w-full grid place-items-center text-sm text-dim">
+                    No Image
                   </div>
+                )}
+              </div>
 
-                  <p className="mt-1 text-xs text-subtle line-clamp-2">{p.description || ""}</p>
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,.22),transparent_55%)]" />
 
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center rounded-xl border border-soft bg-[rgba(255,255,255,.05)] px-2 py-1 text-[11px] text-subtle">
-                      {p.variants?.length || 0} varian
-                    </span>
+              {/* Category */}
+              <div className="absolute left-3 top-3">
+                <span className="h-9 px-3 inline-flex items-center rounded-full bg-white/92 border border-soft text-xs font-semibold">
+                  {p.category || "Other"}
+                </span>
+              </div>
 
-                    <span
-                      className={`inline-flex items-center rounded-xl border px-2 py-1 text-[11px] ${
-                        stock > 0
-                          ? "border-[rgba(16,185,129,.25)] bg-[rgba(16,185,129,.10)] text-[rgba(167,243,208,.95)]"
-                          : "border-[rgba(239,68,68,.25)] bg-[rgba(239,68,68,.10)] text-[rgba(254,202,202,.95)]"
-                      }`}
-                    >
-                      {stock > 0 ? `Stok ${stock}` : "Habis"}
-                    </span>
-                  </div>
-                </div>
+              {/* Stock */}
+              <div className="absolute right-3 top-3">
+                <span
+                  className={[
+                    "h-9 px-3 inline-flex items-center rounded-full border text-xs font-extrabold",
+                    soldOut
+                      ? "bg-white/92 border-red-200 text-red-600"
+                      : "bg-[rgba(16,185,129,.12)] border-[rgba(16,185,129,.30)] text-[rgb(var(--brand))]",
+                  ].join(" ")}
+                >
+                  {soldOut ? "Habis" : `Stok ${stock}`}
+                </span>
+              </div>
+
+              {/* Variants chip */}
+              <div className="absolute left-3 bottom-3">
+                <span className="h-9 px-3 inline-flex items-center rounded-full bg-white/92 border border-soft text-xs font-semibold">
+                  {(p.variants?.length || 0)} varian
+                </span>
               </div>
             </div>
 
-            <div className="px-5 pb-5">
-              <div className="rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] p-4">
-                <div className="text-xs text-subtle">Mulai dari</div>
-                <div className="mt-1 text-2xl font-semibold">{price ? formatIDR(price) : "—"}</div>
+            {/* Body */}
+            <div className="p-5">
+              <div className="font-extrabold text-lg leading-tight line-clamp-1">
+                {p.name}
+              </div>
 
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <div className="text-xs text-subtle">
-                    <span className="hidden sm:inline">Lihat detail & pilih varian</span>
-                    <span className="sm:hidden">Detail</span>
-                  </div>
+              <p className="mt-1 text-sm text-subtle line-clamp-2">
+                {p.description || "—"}
+              </p>
 
-                  <Link href={`/product/${p.id}`} className="shrink-0">
-                    <Button className="btn-brand rounded-2xl px-5" disabled={stock <= 0}>
-                      Beli
+              {/* Price */}
+              <div className="mt-4 rounded-2xl border border-soft bg-[rgba(2,6,23,.02)] p-4">
+                <div className="text-xs text-dim">Mulai dari</div>
+                <div className="mt-1 text-2xl font-extrabold text-[rgb(var(--brand))]">
+                  {price ? formatIDR(price) : "—"}
+                </div>
+
+                {/* Actions (Mode B) */}
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Link href={`/product/${p.id}`}>
+                    <Button
+                      variant="secondary"
+                      className="w-full rounded-2xl border border-soft bg-[rgba(255,255,255,.06)] hover:bg-[rgba(255,255,255,.09)]"
+                    >
+                      Detail
+                    </Button>
+                  </Link>
+
+                  <Link href={`/product/${p.id}`}>
+                    <Button
+                      className="w-full btn-brand rounded-2xl"
+                      disabled={soldOut}
+                    >
+                      {soldOut ? "Habis" : "Beli"}
                     </Button>
                   </Link>
                 </div>
+
+                <div className="mt-3 text-xs text-dim">
+                  Pilih varian di halaman detail
+                </div>
               </div>
             </div>
 
+            {/* Hover glow */}
             <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition">
-              <div className="absolute inset-0 bg-[radial-gradient(800px_circle_at_20%_0%,rgba(16,185,129,.14),transparent_40%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(900px_circle_at_30%_0%,rgba(16,185,129,.12),transparent_42%)]" />
             </div>
           </motion.div>
         );
