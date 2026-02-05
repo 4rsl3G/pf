@@ -17,12 +17,8 @@ export default function SearchBar({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Cari produk… (CapCut, Netflix, Canva)"
-        className={[
-          "w-full h-12 pl-11 pr-11",
-          "input-market",
-          "text-sm",
-          "placeholder:text-[rgba(82,106,95,.55)]",
-        ].join(" ")}
+        className="w-full h-12 pl-11 pr-11 input-market text-sm placeholder:text-[rgba(74,96,86,.55)]"
+        style={{ textOverflow: "ellipsis" }}
       />
 
       {value ? (
