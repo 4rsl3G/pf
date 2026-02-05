@@ -18,7 +18,7 @@ export default function CategoryPills({
             key={it}
             onClick={() => onChange(it)}
             className={[
-              "px-4 h-10 text-sm font-medium",
+              "px-4 h-10 text-sm font-semibold",
               "pill",
               active ? "pill-active" : "",
             ].join(" ")}
