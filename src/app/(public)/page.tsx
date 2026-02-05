@@ -94,27 +94,32 @@ export default function HomePage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      {/* HERO */}
       <StoreHero />
 
-      {/* PROMO */}
       <div className="mt-5">
         <PromoBanner />
       </div>
 
-      {/* SEARCH + CATEGORY (sticky FIX) */}
+      {/* ===== Sticky Search + Category (STABLE HEIGHT) ===== */}
       <div className="mt-6">
-        {/* sticky container */}
         <div className="sticky top-16 z-30">
-          {/* background strip biar gak “geser”/tembus */}
+          {/* Strip solid biar sticky gak tembus & gak “geser” */}
           <div className="bg-[rgb(var(--bg))] border-b border-soft">
             <div className="py-3">
               <div className="card-glass border-soft rounded-2xl p-4 shadow-soft">
                 <div className="grid gap-3">
                   <SearchBar value={query} onChange={setQuery} />
 
-                  {/* pills mobile harus overflow-x */}
-                  <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+                  {/* Kunci: kategori 1 baris + horizontal scroll (NO WRAP) */}
+                  <div
+                    className={[
+                      "overflow-x-auto overscroll-x-contain",
+                      "[-webkit-overflow-scrolling:touch]",
+                      "scrollbar-hide",
+                      "whitespace-nowrap",
+                    ].join(" ")}
+                  >
+                    {/* min-w-max biar isi gak maksa wrap */}
                     <div className="min-w-max">
                       <CategoryPills items={categories} value={category} onChange={setCategory} />
                     </div>
@@ -125,16 +130,14 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* spacer kecil biar konten bawah gak ketiban sticky (optional tapi enak) */}
+        {/* spacer biar section bawah gak ketiban sticky */}
         <div className="h-3" />
       </div>
 
-      {/* POPULAR */}
       <div className="mt-8">
         <PopularRow loading={loading} products={popular} />
       </div>
 
-      {/* GRID */}
       <div className="mt-10" id="produk">
         <ProductGrid loading={loading} products={filtered} />
       </div>
