@@ -5,30 +5,34 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Bell, LogOut, Menu } from "lucide-react";
 
-export default function AdminTopbar({ onMenuClick }: { onMenuClick?: () => void }) {
+export default function AdminTopbar({ onMenu }: { onMenu?: () => void }) {
   const router = useRouter();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-soft bg-[rgba(7,12,10,.80)] backdrop-blur">
-      <div className="px-4 lg:px-8 py-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+    <header className="sticky top-0 z-40 border-b border-soft bg-white/85 backdrop-blur-xl">
+      <div className="px-4 lg:px-8 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {/* Mobile menu */}
           <button
             type="button"
-            onClick={onMenuClick}
-            className="lg:hidden h-10 w-10 rounded-2xl border border-soft bg-[rgba(255,255,255,.06)] hover:bg-[rgba(255,255,255,.09)] transition grid place-items-center"
+            onClick={onMenu}
+            className="lg:hidden h-10 w-10 rounded-2xl border border-soft bg-white hover:bg-black/[0.03] transition grid place-items-center"
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
           </button>
 
-          <div className="min-w-0">
-            <div className="text-sm text-subtle">Admin Panel</div>
-            <div className="font-semibold truncate">Realtime Dashboard</div>
+          <div className="leading-tight">
+            <div className="text-xs text-subtle">Admin Panel</div>
+            <div className="font-semibold tracking-tight">Realtime Dashboard</div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="secondary" className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            className="rounded-2xl bg-black/[0.03] border border-soft hover:bg-black/[0.05]"
+          >
             <Bell className="h-4 w-4" />
           </Button>
 
@@ -40,7 +44,7 @@ export default function AdminTopbar({ onMenuClick }: { onMenuClick?: () => void 
             }}
           >
             <LogOut className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Logout</span>
+            Logout
           </Button>
         </div>
       </div>
