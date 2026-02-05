@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import CheckoutDialog from "@/components/store/CheckoutDialog";
+import { ChevronLeft } from "lucide-react";
 
 type Variant = {
   id: string;
@@ -87,7 +88,9 @@ export default function ProductDetailPage() {
 
   const minPrice = useMemo(() => {
     if (!product) return 0;
-    const arr = product.variants.map((v) => Number(v.price || 0)).filter((x) => Number.isFinite(x) && x > 0);
+    const arr = product.variants
+      .map((v) => Number(v.price || 0))
+      .filter((x) => Number.isFinite(x) && x > 0);
     return arr.length ? Math.min(...arr) : 0;
   }, [product]);
 
@@ -132,9 +135,32 @@ export default function ProductDetailPage() {
   }
 
   const img = resolveImg(product.image);
+  const chosenStock = Number(chosen.stock || 0);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 pb-28">
+      {/* TOP BAR: Back */}
+      <div className="mb-3 flex items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          className="rounded-xl border border-soft bg-white/70 hover:bg-white"
+          onClick={() => router.back()}
+        >
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Back
+        </Button>
+
+        <Button
+          type="button"
+          variant="secondary"
+          className="rounded-xl border border-soft bg-white/70 hover:bg-white"
+          onClick={() => router.push("/")}
+        >
+          Home
+        </Button>
+      </div>
+
       {/* HERO CARD */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -144,7 +170,7 @@ export default function ProductDetailPage() {
         <div className="p-5 sm:p-6">
           <div className="flex items-start gap-4">
             {/* icon/image */}
-            <div className="h-16 w-16 rounded-2xl border border-soft bg-[rgba(255,255,255,.06)] overflow-hidden shrink-0 grid place-items-center">
+            <div className="h-16 w-16 rounded-2xl border border-soft bg-[rgba(255,255,255,.75)] overflow-hidden shrink-0 grid place-items-center">
               {img ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={img} alt={product.name} className="h-full w-full object-cover" />
@@ -156,24 +182,25 @@ export default function ProductDetailPage() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">{product.name}</h1>
-                <Badge className="rounded-xl bg-[rgba(255,255,255,.06)] border-soft text-[11px]">
+
+                <Badge className="rounded-xl bg-white/70 border border-soft text-[11px]">
                   {product.category}
                 </Badge>
+
                 <span
-                  className={`inline-flex items-center rounded-xl border px-2 py-1 text-[11px] ${
+                  className={[
+                    "inline-flex items-center rounded-xl border px-2 py-1 text-[11px]",
                     totalStock > 0
-                      ? "border-[rgba(16,185,129,.25)] bg-[rgba(16,185,129,.10)] text-[rgba(167,243,208,.95)]"
-                      : "border-[rgba(239,68,68,.25)] bg-[rgba(239,68,68,.10)] text-[rgba(254,202,202,.95)]"
-                  }`}
+                      ? "border-[rgba(16,185,129,.30)] bg-[rgba(16,185,129,.10)] text-[rgb(var(--brand))]"
+                      : "border-[rgba(239,68,68,.25)] bg-[rgba(239,68,68,.10)] text-[rgba(185,28,28,1)]",
+                  ].join(" ")}
                 >
                   {totalStock > 0 ? `Stok ${totalStock}` : "Habis"}
                 </span>
               </div>
 
               {product.description ? (
-                <div className="mt-3 prose-tight text-subtle max-w-2xl">
-                  {product.description}
-                </div>
+                <div className="mt-3 text-subtle max-w-2xl leading-relaxed">{product.description}</div>
               ) : null}
             </div>
           </div>
@@ -196,8 +223,8 @@ export default function ProductDetailPage() {
                       "w-full text-left rounded-2xl border p-4 transition",
                       active
                         ? "border-[rgba(16,185,129,.45)] bg-[rgba(16,185,129,.10)]"
-                        : "border-soft bg-[rgba(255,255,255,.04)] hover:bg-[rgba(255,255,255,.06)]",
-                      disabled ? "opacity-60 cursor-not-allowed" : ""
+                        : "border-soft bg-white/60 hover:bg-white",
+                      disabled ? "opacity-60 cursor-not-allowed" : "",
                     ].join(" ")}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -222,31 +249,32 @@ export default function ProductDetailPage() {
         </div>
 
         {/* footer hint */}
-        <div className="px-5 sm:px-6 py-3 border-t border-[rgba(255,255,255,.06)] text-xs text-subtle">
-          Mulai dari <span className="font-semibold text-[rgba(16,185,129,.95)]">{formatIDR(minPrice)}</span> • Pembayaran via QRIS (verifikasi otomatis)
+        <div className="px-5 sm:px-6 py-3 border-t border-[rgba(2,6,23,.06)] text-xs text-subtle bg-white/60">
+          Mulai dari{" "}
+          <span className="font-semibold text-[rgb(var(--brand))]">{formatIDR(minPrice)}</span> • Pembayaran via QRIS
+          (verifikasi otomatis)
         </div>
       </motion.div>
 
-      {/* STICKY BUY BAR */}
-      <div className="fixed left-0 right-0 bottom-0 z-50">
-        <div className="bg-[rgba(7,12,10,.72)] backdrop-blur-xl border-t border-soft">
-          <div className="mx-auto max-w-5xl px-4 py-3 safe-bottom">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-xs text-subtle">Total</div>
-                <div className="font-semibold truncate">
-                  {chosen ? formatIDR(chosen.price) : "—"}
-                </div>
-              </div>
-
-              <CheckoutDialog
-                product={product}
-                defaultVariantId={variantId}
-                disabled={Number(chosen.stock || 0) <= 0}
-                label={Number(chosen.stock || 0) <= 0 ? "Habis" : "Lanjut Checkout"}
-                className="btn-brand rounded-2xl h-11 px-5"
-              />
+      {/* STICKY BUY BAR (SAFE AREA iOS) */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-soft bg-white/95 backdrop-blur-xl"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="mx-auto max-w-5xl px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs text-subtle">Total</div>
+              <div className="font-semibold truncate">{chosen ? formatIDR(chosen.price) : "—"}</div>
             </div>
+
+            <CheckoutDialog
+              product={product}
+              defaultVariantId={variantId}
+              disabled={chosenStock <= 0}
+              label={chosenStock <= 0 ? "Habis" : "Lanjut Checkout"}
+              className="btn-brand rounded-xl h-11 px-5"
+            />
           </div>
         </div>
       </div>
