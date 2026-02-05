@@ -25,10 +25,10 @@ export type Product = {
   name: string;
   category: string;
   description?: string;
-  image?: string | null; // dari admin asset
+  image?: string | null;
   variants: Variant[];
-  minPrice: number; // computed
-  totalStock: number; // computed
+  minPrice: number;
+  totalStock: number;
 };
 
 function computeDerived(p: any): Product {
@@ -77,7 +77,7 @@ export default function HomePage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter(p => {
-      const okCat = category === "All" ? true : (p.category === category);
+      const okCat = category === "All" ? true : p.category === category;
       const okQ =
         !q ||
         p.name.toLowerCase().includes(q) ||
@@ -87,7 +87,6 @@ export default function HomePage() {
   }, [products, query, category]);
 
   const popular = useMemo(() => {
-    // "popular" = stock terbesar lalu harga termurah (simple & efektif)
     return [...products]
       .sort((a, b) => (b.totalStock - a.totalStock) || (a.minPrice - b.minPrice))
       .slice(0, 8);
@@ -103,22 +102,31 @@ export default function HomePage() {
         <PromoBanner />
       </div>
 
-      {/* SEARCH + CATEGORY (sticky) */}
+      {/* SEARCH + CATEGORY (sticky FIX) */}
       <div className="mt-6">
-        <div className="sticky top-[72px] z-30">
-          <div className="card-glass border-soft rounded-2xl p-4 shadow-soft backdrop-blur">
-            <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-              <SearchBar value={query} onChange={setQuery} />
-              <div className="md:justify-self-end">
-                <CategoryPills
-                  items={categories}
-                  value={category}
-                  onChange={setCategory}
-                />
+        {/* sticky container */}
+        <div className="sticky top-16 z-30">
+          {/* background strip biar gak “geser”/tembus */}
+          <div className="bg-[rgb(var(--bg))] border-b border-soft">
+            <div className="py-3">
+              <div className="card-glass border-soft rounded-2xl p-4 shadow-soft">
+                <div className="grid gap-3">
+                  <SearchBar value={query} onChange={setQuery} />
+
+                  {/* pills mobile harus overflow-x */}
+                  <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+                    <div className="min-w-max">
+                      <CategoryPills items={categories} value={category} onChange={setCategory} />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* spacer kecil biar konten bawah gak ketiban sticky (optional tapi enak) */}
+        <div className="h-3" />
       </div>
 
       {/* POPULAR */}
@@ -127,7 +135,7 @@ export default function HomePage() {
       </div>
 
       {/* GRID */}
-      <div className="mt-10">
+      <div className="mt-10" id="produk">
         <ProductGrid loading={loading} products={filtered} />
       </div>
     </div>
