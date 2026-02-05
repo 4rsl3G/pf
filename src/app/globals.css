@@ -2,38 +2,52 @@
 
 /* =========================
    PANSA STORE — GREEN MARKETPLACE (LIGHT)
-   Clean, elegant, conversion-first
+   Clean • Elegant • Conversion-first
+   Tailwind v4 + Custom tokens
    ========================= */
 
 :root{
-  /* Base */
-  --bg: 246 248 250;     /* off-white */
-  --panel: 255 255 255;  /* card */
-  --muted: 242 246 244;  /* subtle block */
+  /* ===== Base surfaces ===== */
+  --bg: 246 248 250;        /* page */
+  --panel: 255 255 255;     /* cards */
+  --muted: 242 246 244;     /* subtle blocks */
+  --elev: 250 252 251;      /* elevated subtle */
 
-  /* Text */
-  --text: 11 23 18;      /* near-black green */
-  --subtext: 74 96 86;   /* muted */
+  /* ===== Text ===== */
+  --text: 11 23 18;         /* near-black green */
+  --subtext: 74 96 86;      /* muted */
+  --placeholder: 118 140 129;
 
-  /* Brand */
-  --brand: 6 78 59;      /* emerald-900 */
-  --brand2: 16 185 129;  /* emerald-500 */
+  /* ===== Brand ===== */
+  --brand: 6 78 59;         /* emerald-900 */
+  --brand2: 16 185 129;     /* emerald-500 */
   --ring: 16 185 129;
 
-  /* Border */
-  --border: 226 232 240; /* slate-200 */
+  /* ===== Border ===== */
+  --border: 226 232 240;    /* slate-200 */
+  --border-strong: 203 213 225; /* slate-300 */
 
-  /* Radius */
+  /* ===== Status ===== */
+  --danger: 239 68 68;
+  --warn: 245 158 11;
+
+  /* ===== Radius ===== */
   --r-xl: 18px;
   --r-lg: 14px;
   --r-md: 12px;
+  --r-sm: 10px;
 
-  /* Shadows */
-  --shadow-sm: 0 10px 26px rgba(2, 6, 23, .06);
-  --shadow-md: 0 18px 44px rgba(2, 6, 23, .10);
+  /* ===== Shadows (subtle, premium) ===== */
+  --shadow-1: 0 10px 26px rgba(2, 6, 23, .06);
+  --shadow-2: 0 18px 44px rgba(2, 6, 23, .10);
+  --shadow-3: 0 26px 70px rgba(2, 6, 23, .12);
+
+  /* ===== Effects ===== */
+  --glass: 255 255 255;
+  --glass-alpha: .92;
 }
 
-html,body{height:100%}
+html, body { height: 100%; }
 
 body{
   background: rgb(var(--bg));
@@ -44,37 +58,66 @@ body{
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Prevent iOS weird horizontal jitter */
+html, body { overflow-x: hidden; }
+
 ::selection{
-  background: rgba(16,185,129,.22);
+  background: rgba(16,185,129,.18);
   color: rgb(var(--text));
 }
 
 :focus-visible{
-  outline:none;
-  box-shadow:0 0 0 4px rgba(var(--ring),.18);
-  border-radius:12px;
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(var(--ring), .18);
+  border-radius: 12px;
 }
 
-/* Subtle dotted texture (premium) */
+/* ===== Subtle dotted premium texture (optional) =====
+   Use by wrapping: <div className="bg-noise">{children}</div>
+*/
 .bg-noise{
   background-image:
-    radial-gradient(rgba(2,6,23,.06) 1px, transparent 1px);
-  background-size:18px 18px;
+    radial-gradient(rgba(2,6,23,.05) 1px, transparent 1px);
+  background-size: 18px 18px;
 }
 
-/* Helpers */
+/* Slight vignette (optional helper) */
+.bg-vignette{
+  background:
+    radial-gradient(1000px 600px at 20% 0%, rgba(16,185,129,.10), transparent 55%),
+    radial-gradient(900px 560px at 100% 20%, rgba(6,78,59,.08), transparent 55%);
+}
+
+/* ===== Helpers ===== */
 .text-subtle{ color: rgba(var(--subtext), .86); }
 .text-dim{ color: rgba(var(--subtext), .68); }
 .border-soft{ border-color: rgba(var(--border), 1); }
-.shadow-soft{ box-shadow: var(--shadow-sm); }
-.shadow-pop{ box-shadow: var(--shadow-md); }
+.border-strong{ border-color: rgba(var(--border-strong), 1); }
 
-/* Cards */
-.card-glass{
-  background: rgba(var(--panel), 1);
+.shadow-soft{ box-shadow: var(--shadow-1); }
+.shadow-pop{ box-shadow: var(--shadow-2); }
+.shadow-float{ box-shadow: var(--shadow-3); }
+
+/* ===== Cards ===== */
+.card{
+  background: rgb(var(--panel));
   border: 1px solid rgba(var(--border), 1);
   border-radius: var(--r-xl);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-1);
+}
+
+.card-glass{
+  background: rgba(var(--glass), var(--glass-alpha));
+  border: 1px solid rgba(var(--border), 1);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-1);
+  backdrop-filter: blur(10px);
+}
+
+.card-muted{
+  background: rgb(var(--muted));
+  border: 1px solid rgba(var(--border), 1);
+  border-radius: var(--r-xl);
 }
 
 .card-hover{
@@ -83,21 +126,50 @@ body{
 .card-hover:hover{
   transform: translateY(-2px);
   border-color: rgba(16,185,129,.22);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-2);
 }
 
-/* Buttons */
+/* ===== Divider ===== */
+.divider-soft{
+  height: 1px;
+  background: rgba(2,6,23,.08);
+}
+
+/* ===== Brand chip / badge base ===== */
+.badge-soft{
+  background: rgba(2,6,23,.03);
+  border: 1px solid rgba(var(--border), 1);
+  color: rgba(var(--text), .86);
+  border-radius: 999px;
+}
+.badge-success{
+  background: rgba(16,185,129,.10);
+  border: 1px solid rgba(16,185,129,.24);
+  color: rgb(var(--brand));
+  border-radius: 999px;
+}
+.badge-danger{
+  background: rgba(239,68,68,.08);
+  border: 1px solid rgba(239,68,68,.22);
+  color: rgba(127,29,29,.95);
+  border-radius: 999px;
+}
+
+/* ===== Buttons ===== */
 .btn-brand{
   background: rgb(var(--brand));
   color: #fff;
   border: 1px solid rgba(6,78,59,.22);
   border-radius: var(--r-lg);
   box-shadow: 0 10px 22px rgba(6,78,59,.18);
-  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease, background .12s ease;
 }
-.btn-brand:hover{ filter: brightness(.96); box-shadow: 0 14px 30px rgba(6,78,59,.22); }
+.btn-brand:hover{
+  filter: brightness(.97);
+  box-shadow: 0 14px 30px rgba(6,78,59,.22);
+}
 .btn-brand:active{ transform: translateY(1px); }
-.btn-brand:disabled{ opacity:.55; box-shadow:none; }
+.btn-brand:disabled{ opacity: .55; box-shadow: none; cursor: not-allowed; }
 
 .btn-soft{
   background: rgba(2,6,23,.03);
@@ -111,40 +183,76 @@ body{
   border-color: rgba(16,185,129,.20);
 }
 
-/* Inputs */
+.btn-white{
+  background: #fff;
+  border: 1px solid rgba(var(--border), 1);
+  color: rgb(var(--text));
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  transition: box-shadow .12s ease, border-color .12s ease, transform .12s ease;
+}
+.btn-white:hover{
+  border-color: rgba(16,185,129,.22);
+  box-shadow: var(--shadow-2);
+}
+.btn-white:active{ transform: translateY(1px); }
+
+/* ===== Inputs ===== */
 .input-market{
   background: #fff;
   border: 1px solid rgba(var(--border), 1);
   border-radius: var(--r-xl);
   color: rgb(var(--text));
-  outline:none;
-  transition: box-shadow .12s ease, border-color .12s ease;
+  outline: none;
+  transition: box-shadow .12s ease, border-color .12s ease, background .12s ease;
+}
+.input-market::placeholder{
+  color: rgba(var(--placeholder), .65);
 }
 .input-market:focus{
   border-color: rgba(16,185,129,.34);
   box-shadow: 0 0 0 4px rgba(16,185,129,.12);
+  background: rgba(255,255,255,.98);
 }
 
-/* Pills */
+/* Search input with icon spacing helper */
+.input-icon{
+  padding-left: 2.5rem;
+  padding-right: 2.5rem;
+}
+
+/* ===== Pills (categories) ===== */
 .pill{
   border-radius: 999px;
   border: 1px solid rgba(var(--border), 1);
   background: #fff;
   color: rgba(var(--text), .92);
-  transition: background .12s ease, border-color .12s ease, color .12s ease;
+  transition: background .12s ease, border-color .12s ease, color .12s ease, transform .12s ease;
   white-space: nowrap;
 }
-.pill:hover{ border-color: rgba(16,185,129,.22); }
+.pill:hover{
+  border-color: rgba(16,185,129,.22);
+}
+.pill:active{
+  transform: translateY(1px);
+}
 .pill-active{
   background: rgba(16,185,129,.10);
   border-color: rgba(16,185,129,.30);
   color: rgb(var(--brand));
 }
 
-/* Skeleton */
+/* ===== Sticky support (biar area sticky tidak “tembus”) ===== */
+.sticky-strip{
+  background: rgba(var(--bg), .92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(var(--border), 1);
+}
+
+/* ===== Skeleton ===== */
 .skeleton{
-  position:relative;
-  overflow:hidden;
+  position: relative;
+  overflow: hidden;
   background: rgba(2,6,23,.06);
   border: 1px solid rgba(2,6,23,.06);
   border-radius: var(--r-xl);
@@ -155,7 +263,7 @@ body{
   inset:0;
   width:50%;
   transform: translateX(-40%);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.7), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent);
   animation: shimmer 1.1s ease-in-out infinite;
 }
 @keyframes shimmer{
@@ -163,16 +271,47 @@ body{
   100%{ transform: translateX(140%); }
 }
 
-/* clamp */
+/* ===== Clamp ===== */
 .line-clamp-1{
-  display:-webkit-box;
-  -webkit-line-clamp:1;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .line-clamp-2{
-  display:-webkit-box;
-  -webkit-line-clamp:2;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-3{
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ===== Scrollbar (desktop only) ===== */
+@media (pointer: fine) {
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(2,6,23,.12);
+    border-radius: 999px;
+    border: 2px solid rgba(246,248,250,.95);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(16,185,129,.22);
+  }
+  ::-webkit-scrollbar-track { background: rgba(2,6,23,.04); }
+}
+
+/* ===== Small entrance animation ===== */
+@media (prefers-reduced-motion: no-preference) {
+  .fade-in{
+    animation: fadein .22s ease-out both;
+  }
+  @keyframes fadein{
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 }
