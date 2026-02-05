@@ -1,68 +1,52 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 
 export default function ReceiptPage() {
   const params = useParams<{ invoiceId?: string }>();
 
-  const invoiceIdRaw = useMemo(() => {
-    const v = (params?.invoiceId ?? "") as string;
+  const invoiceId = useMemo(() => {
     try {
-      return decodeURIComponent(v);
+      return decodeURIComponent(params?.invoiceId || "");
     } catch {
-      return v;
+      return params?.invoiceId || "";
     }
   }, [params?.invoiceId]);
 
-  const invoiceKey = useMemo(() => encodeURIComponent(invoiceIdRaw), [invoiceIdRaw]);
-
-  const [data, setData] = useState<any>(null);
+  const [receipt, setReceipt] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
-    // apiFetch kamu sudah pakai API_BASE (/v1), jadi path cukup /invoice/...
-    const r = await apiFetch<any>(`/invoice/${invoiceKey}/receipt`);
-    setData(r?.data ?? null);
-  }
-
   useEffect(() => {
+    if (!invoiceId) return;
+
     (async () => {
       try {
         setLoading(true);
-        setData(null);
-        if (!invoiceIdRaw) return;
-        await load();
+        const r = await apiFetch<any>(`/invoice/${encodeURIComponent(invoiceId)}/receipt`);
+        // kalau backend masih array → ambil index 0
+        setReceipt(Array.isArray(r.data) ? r.data[0] : r.data);
       } catch (e: any) {
-        setData(null);
-        toast.error(e?.error || e?.message || "Receipt belum tersedia");
+        toast.error("Receipt belum tersedia");
       } finally {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoiceIdRaw, invoiceKey]);
+  }, [invoiceId]);
 
-  if (!invoiceIdRaw) {
+  if (!invoiceId) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
-        <Card className="card-glass border-soft rounded-2xl">
-          <CardHeader>
-            <CardTitle className="text-base">Invoice ID kosong</CardTitle>
-            <CardDescription className="text-subtle">
-              Buka halaman ini dari link receipt yang benar: <span className="font-mono">/receipt/INV-...</span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/">
-              <Button className="btn-brand rounded-2xl">Kembali ke Store</Button>
-            </Link>
-          </CardContent>
+      <div className="mx-auto max-w-xl py-10">
+        <Card className="card-glass border-soft rounded-2xl p-6">
+          <div className="text-xl font-semibold">Invoice ID kosong</div>
+          <Link href="/">
+            <Button className="btn-brand mt-4 rounded-2xl">Kembali ke Store</Button>
+          </Link>
         </Card>
       </div>
     );
@@ -70,65 +54,92 @@ export default function ReceiptPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
-        <div className="card-glass rounded-2xl p-6 skeleton h-[240px]" />
+      <div className="mx-auto max-w-xl py-10">
+        <div className="card-glass rounded-2xl p-6 skeleton h-[200px]" />
       </div>
     );
   }
 
-  return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      <Card className="card-glass rounded-2xl border-soft shadow-soft">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <div className="text-xs text-subtle">Receipt</div>
-              <div className="text-2xl font-semibold">{invoiceIdRaw}</div>
-            </div>
-            <Link href="/">
-              <Button className="btn-brand rounded-2xl">Kembali ke Store</Button>
-            </Link>
+  if (!receipt) {
+    return (
+      <div className="mx-auto max-w-xl py-10">
+        <Card className="card-glass border-soft rounded-2xl p-6">
+          <div className="text-sm text-subtle">
+            Receipt belum tersedia. Silakan refresh beberapa saat lagi.
           </div>
-          <CardDescription className="text-subtle">
-            Data dari Premify <span className="font-mono">/transactions</span> (muncul setelah status <b>FULFILLED</b>)
-          </CardDescription>
+        </Card>
+      </div>
+    );
+  }
+
+  const product = receipt.products?.[0];
+  const account = receipt.account_details?.[0]?.details?.[0];
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-10 space-y-4">
+      <Card className="card-glass border-soft rounded-2xl">
+        <CardHeader className="flex flex-row items-start justify-between">
+          <div>
+            <div className="text-xs text-subtle">Receipt</div>
+            <CardTitle className="text-2xl">{invoiceId}</CardTitle>
+            <div className="mt-1 text-xs text-subtle">
+              Status: <b className="text-green-600">Berhasil</b>
+            </div>
+          </div>
+
+          <Link href="/">
+            <Button className="btn-brand rounded-2xl">Kembali ke Store</Button>
+          </Link>
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {!data ? (
-            <div className="text-sm text-subtle">
-              Receipt belum tersedia. Coba refresh beberapa saat lagi.
-            </div>
-          ) : (
-            <>
-              <pre className="text-xs bg-[rgba(255,255,255,.06)] border border-soft rounded-2xl p-4 overflow-auto max-h-[520px]">
-                {JSON.stringify(data, null, 2)}
-              </pre>
+          {/* PRODUK */}
+          <div className="space-y-2">
+            <div className="text-sm font-semibold">Produk</div>
 
-              <div className="flex gap-2 flex-wrap">
+            <Row label="Nama Produk" value={product?.product_name} />
+            <Row label="Variant" value={product?.variant_name} />
+            <Row label="Tipe" value={product?.type} />
+            <Row label="Durasi" value={product?.duration} />
+          </div>
+
+          {/* AKSES AKUN */}
+          <div className="space-y-2 pt-4">
+            <div className="text-sm font-semibold">Akses Akun</div>
+
+            {account?.credentials?.map((c: any, i: number) => (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] px-4 py-3"
+              >
+                <div>
+                  <div className="text-xs text-subtle">{c.label}</div>
+                  <div className="font-medium">{c.value}</div>
+                </div>
                 <Button
                   variant="secondary"
-                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
+                  className="rounded-2xl"
                   onClick={() => {
-                    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+                    navigator.clipboard.writeText(c.value);
                     toast.success("Disalin");
                   }}
                 >
-                  Copy JSON
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
-                  onClick={() => load().catch(() => {})}
-                >
-                  Refresh
+                  Copy
                 </Button>
               </div>
-            </>
-          )}
+            ))}
+          </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: any }) {
+  return (
+    <div className="flex justify-between rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] px-4 py-3">
+      <div className="text-xs text-subtle">{label}</div>
+      <div className="font-medium">{value || "-"}</div>
     </div>
   );
 }
