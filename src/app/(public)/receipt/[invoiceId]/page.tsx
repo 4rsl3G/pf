@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
@@ -37,98 +37,112 @@ function dedupeItems(items: AccessItem[]) {
   });
 }
 
+function normalizeSpaces(s: any) {
+  return String(s ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /**
- * Premify bisa kasih 2 bentuk utama:
- * 1) account_details[].details[].credentials[] -> {label,value}
- * 2) account_details[].details[] langsung -> {label,value} (tanpa "credentials")  ✅ ini kasus kamu
+ * Premify kemungkinan:
+ * - account_details[].details[].credentials[] -> {label,value}
+ * - account_details[].details[] -> {label,value} (tanpa credentials) ✅
+ * - account_details[].details: null + message (Invite diproses)
  */
-function extractItemsFromPremify(raw: any): AccessItem[] {
+function extractFromPremify(raw: any): {
+  items: AccessItem[];
+  message: string | null;
+  isInvite: boolean;
+} {
+  const accountDetails = raw?.account_details;
+  if (!Array.isArray(accountDetails)) return { items: [], message: null, isInvite: false };
+
+  let msg: string | null = null;
+  let isInvite = false;
+
   const out: AccessItem[] = [];
 
-  const accountDetails = raw?.account_details;
-  if (!Array.isArray(accountDetails)) return out;
-
   for (const ad of accountDetails) {
-    const details = Array.isArray(ad?.details) ? ad.details : [];
-    for (const d of details) {
+    const adMsg =
+      normalizeSpaces(ad?.message) ||
+      normalizeSpaces(ad?.msg) ||
+      normalizeSpaces(ad?.note) ||
+      "";
+    if (adMsg && !msg) msg = adMsg;
+
+    const details = ad?.details;
+
+    if (details === null || details === undefined) {
+      // invite sering details = null + message
+      isInvite = true;
+      continue;
+    }
+
+    const arr = Array.isArray(details) ? details : [];
+    for (const d of arr) {
       // CASE A: d.credentials = [{label,value}]
       const creds = Array.isArray(d?.credentials) ? d.credentials : null;
-      if (creds && creds.length) {
+      if (creds?.length) {
         for (const c of creds) {
-          const label = String(c?.label || "").trim();
-          const value = String(c?.value || "").trim();
+          const label = normalizeSpaces(c?.label);
+          const value = normalizeSpaces(c?.value);
           if (label && value) out.push({ label, value });
         }
         continue;
       }
 
       // CASE B: d langsung {label,value}
-      const label = String(d?.label || "").trim();
-      const value = String(d?.value || "").trim();
+      const label = normalizeSpaces(d?.label);
+      const value = normalizeSpaces(d?.value);
       if (label && value) out.push({ label, value });
 
-      // CASE C (fallback): {title, value} / {name, value}
-      const label2 = String(d?.title || d?.name || "").trim();
-      const value2 = String(d?.value || d?.val || "").trim();
+      // CASE C fallback: {title,value}/{name,value}
+      const label2 = normalizeSpaces(d?.title || d?.name);
+      const value2 = normalizeSpaces(d?.value || d?.val);
       if (label2 && value2) out.push({ label: label2, value: value2 });
+
+      const dMsg = normalizeSpaces(d?.message || d?.msg || d?.note);
+      if (dMsg && !msg) msg = dMsg;
     }
   }
 
-  return dedupeItems(out);
+  return { items: dedupeItems(out), message: msg || null, isInvite };
 }
 
 function normalizeReceipt(anyResp: any) {
-  // kemungkinan bentuk:
-  // A) { success:true, data: {...} }
-  // B) { success:true, data: [ {...} ] }
-  // C) { success:true, message:"", data:[...] } (premify raw)
   const data = anyResp?.data ?? anyResp;
   const one = pickFirst<any>(data);
   if (!one) return null;
 
-  // kalau backend sudah ngirim normalisasi: access.items
+  // normalized backend
   const normalizedItems: AccessItem[] = Array.isArray(one?.access?.items)
     ? dedupeItems(
         one.access.items.map((x: any) => ({
-          label: String(x?.label || "").trim(),
-          value: String(x?.value || "").trim(),
+          label: normalizeSpaces(x?.label),
+          value: normalizeSpaces(x?.value),
         }))
       )
     : [];
 
-  // receipt raw bisa di:
-  // - one.raw (kalau backend bungkus)
-  // - one (kalau endpoint langsung return receipt)
   const raw = one?.raw ?? one;
 
-  // premify raw extractor (fix untuk label/value langsung)
-  const premifyItems = extractItemsFromPremify(raw);
+  const premify = extractFromPremify(raw);
 
-  // product info
   const p0 = Array.isArray(raw?.products) ? raw.products[0] : null;
 
-  const productName = one?.productName ?? raw?.productName ?? p0?.product_name ?? p0?.product ?? null;
-  const variantName = one?.variantName ?? raw?.variantName ?? p0?.variant_name ?? null;
+  const productName =
+    one?.productName ?? raw?.productName ?? p0?.product_name ?? p0?.product ?? null;
 
-  const payAmount =
-    one?.payAmount ??
-    raw?.payAmount ??
-    raw?.total_amount ??
-    null;
+  const variantName =
+    one?.variantName ?? raw?.variantName ?? p0?.variant_name ?? null;
 
-  const orderId =
-    one?.premifyOrderId ??
-    raw?.premifyOrderId ??
-    raw?.order_id ??
-    null;
+  const payAmount = one?.payAmount ?? raw?.payAmount ?? raw?.total_amount ?? null;
 
-  const invoiceId =
-    one?.invoiceId ??
-    raw?.invoiceId ??
-    raw?.invoice_id ??
-    null;
+  const orderId = one?.premifyOrderId ?? raw?.premifyOrderId ?? raw?.order_id ?? null;
 
-  const items = normalizedItems.length ? normalizedItems : premifyItems;
+  const invoiceId = one?.invoiceId ?? raw?.invoiceId ?? raw?.invoice_id ?? null;
+
+  const items = normalizedItems.length ? normalizedItems : premify.items;
 
   return {
     invoiceId,
@@ -137,6 +151,8 @@ function normalizeReceipt(anyResp: any) {
     payAmount,
     premifyOrderId: orderId,
     items,
+    inviteMessage: premify.message,
+    invitePending: premify.isInvite && items.length === 0, // invite + belum ada detail
     raw,
   };
 }
@@ -157,6 +173,9 @@ export default function ReceiptPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const autoTimerRef = useRef<any>(null);
+  const lastToastRef = useRef<number>(0);
+
   async function load(opts?: { silent?: boolean }) {
     if (!invoiceId) return;
     const silent = !!opts?.silent;
@@ -168,10 +187,11 @@ export default function ReceiptPage() {
       const norm = normalizeReceipt(r);
 
       setData(norm);
-      if (!norm) toast.error("Receipt belum tersedia");
+
+      if (!norm && !silent) toast.error("Receipt belum tersedia");
     } catch (e: any) {
       setData(null);
-      toast.error(e?.error || e?.message || "Receipt belum tersedia");
+      if (!silent) toast.error(e?.error || e?.message || "Receipt belum tersedia");
     } finally {
       setLoading(false);
       if (!silent) setRefreshing(false);
@@ -182,8 +202,43 @@ export default function ReceiptPage() {
     if (!invoiceId) return;
     setLoading(true);
     load({ silent: true });
+
+    return () => {
+      if (autoTimerRef.current) clearInterval(autoTimerRef.current);
+      autoTimerRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
+
+  // auto refresh untuk Invite yang masih diproses
+  useEffect(() => {
+    if (autoTimerRef.current) {
+      clearInterval(autoTimerRef.current);
+      autoTimerRef.current = null;
+    }
+
+    if (!data?.invitePending) return;
+
+    autoTimerRef.current = setInterval(() => {
+      load({ silent: true });
+    }, 9000);
+
+    return () => {
+      if (autoTimerRef.current) clearInterval(autoTimerRef.current);
+      autoTimerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.invitePending, invoiceId]);
+
+  // toast tip untuk invite pending (dibatasi biar ga spam)
+  useEffect(() => {
+    if (!data?.invitePending) return;
+    const now = Date.now();
+    if (now - lastToastRef.current < 15000) return;
+    lastToastRef.current = now;
+    const msg = data?.inviteMessage || "Detail akun sedang diproses. Silakan tunggu dan refresh.";
+    toast.message(msg);
+  }, [data?.invitePending, data?.inviteMessage]);
 
   if (!invoiceId) {
     return (
@@ -247,6 +302,10 @@ export default function ReceiptPage() {
   }
 
   const items = dedupeItems((data.items || []).map((x) => ({ label: x.label, value: x.value })));
+  const invitePending = !!data.invitePending;
+  const inviteMsg =
+    data.inviteMessage ||
+    "Detail akun sedang diproses. Silakan tunggu sebentar lalu klik Refresh.";
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 space-y-4 pb-24">
@@ -273,6 +332,12 @@ export default function ReceiptPage() {
                 <>
                   <span className="opacity-40"> • </span>
                   <span>Nominal: {formatIDR(data.payAmount)}</span>
+                </>
+              ) : null}
+              {invitePending ? (
+                <>
+                  <span className="opacity-40"> • </span>
+                  <span className="text-subtle">Sedang diproses</span>
                 </>
               ) : null}
             </div>
@@ -321,7 +386,20 @@ export default function ReceiptPage() {
 
             {items.length === 0 ? (
               <div className="rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] p-4 text-sm text-subtle">
-                Akses belum tersedia.
+                {invitePending ? (
+                  <>
+                    <div className="font-medium text-[rgba(11,23,18,.92)]">Sedang diproses</div>
+                    <div className="mt-1">{inviteMsg}</div>
+                    <div className="mt-3 flex gap-2">
+                      <Button className="btn-soft rounded-2xl" onClick={() => load()} disabled={refreshing}>
+                        <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+                        Cek lagi
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>Akses belum tersedia.</>
+                )}
               </div>
             ) : (
               <div className="grid gap-2">
