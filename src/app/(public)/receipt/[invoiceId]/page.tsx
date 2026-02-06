@@ -24,6 +24,24 @@ function pickFirst<T>(v: any): T | null {
   return v as T;
 }
 
+function dedupeItems(items: AccessItem[]) {
+  const seen = new Set<string>();
+  return items.filter((x) => {
+    const label = String(x?.label || "").trim();
+    const value = String(x?.value || "").trim();
+    if (!label || !value) return false;
+    const k = `${label}::${value}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+/**
+ * Premify bisa kasih 2 bentuk utama:
+ * 1) account_details[].details[].credentials[] -> {label,value}
+ * 2) account_details[].details[] langsung -> {label,value} (tanpa "credentials")  ✅ ini kasus kamu
+ */
 function extractItemsFromPremify(raw: any): AccessItem[] {
   const out: AccessItem[] = [];
 
@@ -33,23 +51,30 @@ function extractItemsFromPremify(raw: any): AccessItem[] {
   for (const ad of accountDetails) {
     const details = Array.isArray(ad?.details) ? ad.details : [];
     for (const d of details) {
-      const creds = Array.isArray(d?.credentials) ? d.credentials : [];
-      for (const c of creds) {
-        const label = String(c?.label || "").trim();
-        const value = String(c?.value || "").trim();
-        if (label && value) out.push({ label, value });
+      // CASE A: d.credentials = [{label,value}]
+      const creds = Array.isArray(d?.credentials) ? d.credentials : null;
+      if (creds && creds.length) {
+        for (const c of creds) {
+          const label = String(c?.label || "").trim();
+          const value = String(c?.value || "").trim();
+          if (label && value) out.push({ label, value });
+        }
+        continue;
       }
+
+      // CASE B: d langsung {label,value}
+      const label = String(d?.label || "").trim();
+      const value = String(d?.value || "").trim();
+      if (label && value) out.push({ label, value });
+
+      // CASE C (fallback): {title, value} / {name, value}
+      const label2 = String(d?.title || d?.name || "").trim();
+      const value2 = String(d?.value || d?.val || "").trim();
+      if (label2 && value2) out.push({ label: label2, value: value2 });
     }
   }
 
-  // dedupe (label+value)
-  const seen = new Set<string>();
-  return out.filter((x) => {
-    const k = `${x.label}::${x.value}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  return dedupeItems(out);
 }
 
 function normalizeReceipt(anyResp: any) {
@@ -59,26 +84,51 @@ function normalizeReceipt(anyResp: any) {
   // C) { success:true, message:"", data:[...] } (premify raw)
   const data = anyResp?.data ?? anyResp;
   const one = pickFirst<any>(data);
-
   if (!one) return null;
 
-  // 1) format "normalized"
+  // kalau backend sudah ngirim normalisasi: access.items
   const normalizedItems: AccessItem[] = Array.isArray(one?.access?.items)
-    ? one.access.items.filter((x: any) => x?.label && x?.value)
+    ? dedupeItems(
+        one.access.items.map((x: any) => ({
+          label: String(x?.label || "").trim(),
+          value: String(x?.value || "").trim(),
+        }))
+      )
     : [];
 
-  // 2) format premify raw
-  const premifyItems = extractItemsFromPremify(one);
+  // receipt raw bisa di:
+  // - one.raw (kalau backend bungkus)
+  // - one (kalau endpoint langsung return receipt)
+  const raw = one?.raw ?? one;
 
-  // product info: prefer normalized field -> fallback premify products[0]
-  const p0 = Array.isArray(one?.products) ? one.products[0] : null;
+  // premify raw extractor (fix untuk label/value langsung)
+  const premifyItems = extractItemsFromPremify(raw);
 
-  const productName = one?.productName ?? p0?.product_name ?? p0?.product ?? null;
-  const variantName = one?.variantName ?? p0?.variant_name ?? null;
+  // product info
+  const p0 = Array.isArray(raw?.products) ? raw.products[0] : null;
 
-  const payAmount = one?.payAmount ?? one?.total_amount ?? null;
-  const orderId = one?.premifyOrderId ?? one?.order_id ?? null;
-  const invoiceId = one?.invoiceId ?? one?.invoice_id ?? null;
+  const productName = one?.productName ?? raw?.productName ?? p0?.product_name ?? p0?.product ?? null;
+  const variantName = one?.variantName ?? raw?.variantName ?? p0?.variant_name ?? null;
+
+  const payAmount =
+    one?.payAmount ??
+    raw?.payAmount ??
+    raw?.total_amount ??
+    null;
+
+  const orderId =
+    one?.premifyOrderId ??
+    raw?.premifyOrderId ??
+    raw?.order_id ??
+    null;
+
+  const invoiceId =
+    one?.invoiceId ??
+    raw?.invoiceId ??
+    raw?.invoice_id ??
+    null;
+
+  const items = normalizedItems.length ? normalizedItems : premifyItems;
 
   return {
     invoiceId,
@@ -86,8 +136,8 @@ function normalizeReceipt(anyResp: any) {
     variantName,
     payAmount,
     premifyOrderId: orderId,
-    items: normalizedItems.length ? normalizedItems : premifyItems,
-    raw: one,
+    items,
+    raw,
   };
 }
 
@@ -171,7 +221,9 @@ export default function ReceiptPage() {
             <div className="min-w-0">
               <div className="text-xs text-subtle">Receipt</div>
               <CardTitle className="text-lg sm:text-xl font-semibold truncate">{invoiceId}</CardTitle>
-              <div className="text-xs text-subtle mt-1">Receipt belum tersedia. Klik refresh beberapa saat lagi.</div>
+              <div className="text-xs text-subtle mt-1">
+                Receipt belum tersedia. Klik refresh beberapa saat lagi.
+              </div>
             </div>
 
             <div className="flex gap-2 shrink-0">
@@ -194,7 +246,7 @@ export default function ReceiptPage() {
     );
   }
 
-  const items = (data.items || []).filter((x) => x.label && x.value);
+  const items = dedupeItems((data.items || []).map((x) => ({ label: x.label, value: x.value })));
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 space-y-4 pb-24">
@@ -204,7 +256,7 @@ export default function ReceiptPage() {
             <div className="text-xs text-subtle">Receipt</div>
 
             <CardTitle className="mt-1 text-xl sm:text-2xl font-semibold leading-tight">
-              <span className="block font-mono tracking-tight break-all sm:break-normal sm:whitespace-nowrap sm:truncate">
+              <span className="block font-mono tracking-tight break-normal whitespace-normal sm:whitespace-nowrap sm:truncate">
                 {invoiceId}
               </span>
             </CardTitle>
@@ -214,10 +266,10 @@ export default function ReceiptPage() {
               {data.premifyOrderId ? (
                 <>
                   <span className="opacity-40"> • </span>
-                  <span className="break-all sm:break-normal">Order: {data.premifyOrderId}</span>
+                  <span>Order: {data.premifyOrderId}</span>
                 </>
               ) : null}
-              {typeof data.payAmount === "number" ? (
+              {data.payAmount !== null && data.payAmount !== undefined ? (
                 <>
                   <span className="opacity-40"> • </span>
                   <span>Nominal: {formatIDR(data.payAmount)}</span>
