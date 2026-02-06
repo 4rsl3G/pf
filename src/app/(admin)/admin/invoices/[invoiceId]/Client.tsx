@@ -8,17 +8,21 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-export default function AdminInvoiceDetail() {
+type Props = {
+  invoiceId?: string; // optional kalau nanti mau dipassing dari server page
+};
+
+export default function Client(props: Props) {
   const params = useParams<{ invoiceId?: string }>();
 
   const invoiceIdRaw = useMemo(() => {
-    const v = (params?.invoiceId ?? "") as string;
+    const v = (props.invoiceId ?? params?.invoiceId ?? "") as string;
     try {
       return decodeURIComponent(v);
     } catch {
       return v;
     }
-  }, [params?.invoiceId]);
+  }, [props.invoiceId, params?.invoiceId]);
 
   const invoiceKey = useMemo(() => encodeURIComponent(invoiceIdRaw), [invoiceIdRaw]);
 
@@ -54,7 +58,10 @@ export default function AdminInvoiceDetail() {
     if (!invoiceIdRaw) return toast.error("Invoice ID kosong");
     try {
       setBusy(true);
-      const r = await apiFetch<any>(`/admin/invoices/${invoiceKey}/retry-fulfill`, { method: "POST", auth: true });
+      const r = await apiFetch<any>(`/admin/invoices/${invoiceKey}/retry-fulfill`, {
+        method: "POST",
+        auth: true,
+      });
       toast.success(`Fulfilled: ${r?.data?.premifyOrderId || "-"}`);
       await load();
     } catch (e: any) {
@@ -98,13 +105,13 @@ export default function AdminInvoiceDetail() {
 
   if (!invoiceIdRaw) {
     return (
-      <div className="max-w-6xl mx-auto px-4 space-y-6">
+      <div className="max-w-6xl mx-auto px-4 space-y-6 min-w-0 overflow-x-hidden">
         <Header title="Invoice ID kosong" subtitle="URL tidak valid / params belum kebaca" />
         <Card className="card-glass border-soft rounded-2xl">
           <CardHeader>
             <CardTitle className="text-base">Buka dari halaman list</CardTitle>
             <CardDescription className="text-subtle">
-              Pastikan file ada di: <span className="font-mono">src/app/(admin)/admin/invoices/[invoiceId]/page.tsx</span>
+              Pastikan route benar: <span className="font-mono">/admin/invoices/[invoiceId]</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -120,7 +127,7 @@ export default function AdminInvoiceDetail() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 space-y-6 min-w-0 overflow-x-hidden">
       <Header
         title={invoiceIdRaw}
         subtitle={inv ? `${inv.productName} — ${inv.variantName}` : "Invoice Detail"}
@@ -134,7 +141,7 @@ export default function AdminInvoiceDetail() {
       />
 
       {loading ? (
-        <div className="grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
+        <div className="grid gap-4 lg:grid-cols-[1.35fr_.65fr] min-w-0">
           <div className="card-glass rounded-2xl p-6 skeleton h-[360px]" />
           <div className="card-glass rounded-2xl p-6 skeleton h-[360px]" />
         </div>
@@ -143,51 +150,53 @@ export default function AdminInvoiceDetail() {
           <CardHeader>
             <CardTitle className="text-base">Invoice tidak ditemukan</CardTitle>
             <CardDescription className="text-subtle">
-              Key: <span className="font-mono">{invoiceIdRaw}</span>
+              Key: <span className="font-mono break-all">{invoiceIdRaw}</span>
             </CardDescription>
           </CardHeader>
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
+        <div className="grid gap-4 lg:grid-cols-[1.35fr_.65fr] min-w-0">
           {/* INFO */}
-          <Card className="card-glass border-soft rounded-2xl">
-            <CardHeader className="space-y-1">
+          <Card className="card-glass border-soft rounded-2xl overflow-hidden min-w-0">
+            <CardHeader className="space-y-1 min-w-0">
               <CardTitle className="text-base">Invoice Info</CardTitle>
               <CardDescription className="text-subtle">Status & detail pembayaran / order</CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-4">
-              {/* ACTION BAR (RESPONSIVE) */}
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <Button
-                  className="btn-brand rounded-2xl w-full sm:w-auto"
-                  onClick={retryFulfill}
-                  disabled={disableActions}
-                >
-                  Retry Fulfill
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft w-full sm:w-auto"
-                  onClick={refetchReceipt}
-                  disabled={disableActions}
-                >
-                  Refetch Receipt
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft w-full sm:w-auto"
-                  onClick={expire}
-                  disabled={disableActions}
-                >
-                  Expire
-                </Button>
+            <CardContent className="space-y-4 min-w-0">
+              {/* ACTION BAR: horizontal scroll on mobile */}
+              <div className="w-full min-w-0">
+                <div className="-mx-4 px-4 overflow-x-auto no-scrollbar">
+                  <div className="flex gap-2 py-1 w-max">
+                    <Button
+                      className="btn-brand rounded-2xl whitespace-nowrap shrink-0"
+                      onClick={retryFulfill}
+                      disabled={disableActions}
+                    >
+                      Retry Fulfill
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft whitespace-nowrap shrink-0"
+                      onClick={refetchReceipt}
+                      disabled={disableActions}
+                    >
+                      Refetch Receipt
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft whitespace-nowrap shrink-0"
+                      onClick={expire}
+                      disabled={disableActions}
+                    >
+                      Expire
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {/* KV GRID */}
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 min-w-0">
                 <KV k="Status" v={<StatusPill status={inv.status} />} />
                 <KV k="Pay Amount" v={`Rp ${Number(inv.payAmount || 0).toLocaleString("id-ID")}`} />
 
@@ -204,7 +213,7 @@ export default function AdminInvoiceDetail() {
 
               {/* RECEIPT */}
               <div className="min-w-0">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3 min-w-0">
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">Receipt JSON</div>
                   </div>
@@ -212,7 +221,7 @@ export default function AdminInvoiceDetail() {
                 </div>
 
                 {inv.premifyReceiptJson ? (
-                  <pre className="mt-2 text-xs bg-[rgba(255,255,255,.06)] border border-soft rounded-2xl p-4 overflow-x-auto max-h-[320px]">
+                  <pre className="mt-2 text-xs bg-[rgba(255,255,255,.06)] border border-soft rounded-2xl p-4 max-h-[320px] overflow-x-auto whitespace-pre-wrap break-words">
                     {safePretty(inv.premifyReceiptJson)}
                   </pre>
                 ) : (
@@ -225,12 +234,12 @@ export default function AdminInvoiceDetail() {
           </Card>
 
           {/* QR */}
-          <Card className="card-glass border-soft rounded-2xl lg:sticky lg:top-6 h-fit">
-            <CardHeader className="space-y-1">
+          <Card className="card-glass border-soft rounded-2xl lg:sticky lg:top-6 h-fit min-w-0">
+            <CardHeader className="space-y-1 min-w-0">
               <CardTitle className="text-base">QR (Pending only)</CardTitle>
               <CardDescription className="text-subtle">QR akan 404 setelah paid/expired</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 min-w-0">
               {qrisPng ? (
                 <div className="rounded-2xl overflow-hidden border border-soft bg-white">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -250,13 +259,12 @@ export default function AdminInvoiceDetail() {
 
 function Header({ title, subtitle, right }: { title: string; subtitle?: string; right?: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between min-w-0">
       <div className="min-w-0">
         <div className="text-sm text-subtle">Invoice Detail</div>
         <div className="text-xl sm:text-2xl font-semibold break-words sm:truncate">{title}</div>
         {subtitle ? <div className="text-sm text-subtle mt-1 break-words sm:truncate">{subtitle}</div> : null}
       </div>
-
       {right ? <div className="shrink-0">{right}</div> : null}
     </div>
   );
@@ -266,7 +274,7 @@ function KV({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) {
   return (
     <div className="rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] px-4 py-3 min-w-0">
       <div className="text-xs text-subtle">{k}</div>
-      <div className={`mt-1 font-medium break-words ${mono ? "font-mono text-[12px]" : ""}`}>{v}</div>
+      <div className={`mt-1 font-medium ${mono ? "font-mono text-[12px] break-all" : "break-words"}`}>{v}</div>
     </div>
   );
 }
