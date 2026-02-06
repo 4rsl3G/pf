@@ -62,7 +62,7 @@ function normalizeReceipt(anyResp: any) {
 
   if (!one) return null;
 
-  // 1) format "normalized" (kalau backend kamu sudah bikin access.items)
+  // 1) format "normalized"
   const normalizedItems: AccessItem[] = Array.isArray(one?.access?.items)
     ? one.access.items.filter((x: any) => x?.label && x?.value)
     : [];
@@ -73,32 +73,12 @@ function normalizeReceipt(anyResp: any) {
   // product info: prefer normalized field -> fallback premify products[0]
   const p0 = Array.isArray(one?.products) ? one.products[0] : null;
 
-  const productName =
-    one?.productName ??
-    p0?.product_name ??
-    p0?.product ??
-    null;
+  const productName = one?.productName ?? p0?.product_name ?? p0?.product ?? null;
+  const variantName = one?.variantName ?? p0?.variant_name ?? null;
 
-  const variantName =
-    one?.variantName ??
-    p0?.variant_name ??
-    null;
-
-  const payAmount =
-    one?.payAmount ??
-    one?.total_amount ??
-    null;
-
-  const orderId =
-    one?.premifyOrderId ??
-    one?.order_id ??
-    null;
-
-  // invoiceId: biasanya dari URL, tapi kalau backend ada, pakai itu
-  const invoiceId =
-    one?.invoiceId ??
-    one?.invoice_id ??
-    null;
+  const payAmount = one?.payAmount ?? one?.total_amount ?? null;
+  const orderId = one?.premifyOrderId ?? one?.order_id ?? null;
+  const invoiceId = one?.invoiceId ?? one?.invoice_id ?? null;
 
   return {
     invoiceId,
@@ -190,12 +170,8 @@ export default function ReceiptPage() {
           <CardHeader className="flex flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs text-subtle">Receipt</div>
-              <CardTitle className="text-lg sm:text-xl font-semibold truncate">
-                {invoiceId}
-              </CardTitle>
-              <div className="text-xs text-subtle mt-1">
-                Receipt belum tersedia. Klik refresh beberapa saat lagi.
-              </div>
+              <CardTitle className="text-lg sm:text-xl font-semibold truncate">{invoiceId}</CardTitle>
+              <div className="text-xs text-subtle mt-1">Receipt belum tersedia. Klik refresh beberapa saat lagi.</div>
             </div>
 
             <div className="flex gap-2 shrink-0">
@@ -224,13 +200,11 @@ export default function ReceiptPage() {
     <div className="mx-auto max-w-3xl px-4 py-10 space-y-4 pb-24">
       <Card className="card-glass border-soft rounded-2xl">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          {/* LEFT */}
           <div className="min-w-0">
             <div className="text-xs text-subtle">Receipt</div>
 
-            {/* FIX: jangan break per karakter */}
             <CardTitle className="mt-1 text-xl sm:text-2xl font-semibold leading-tight">
-              <span className="block font-mono tracking-tight break-normal whitespace-normal sm:whitespace-nowrap sm:truncate">
+              <span className="block font-mono tracking-tight break-all sm:break-normal sm:whitespace-nowrap sm:truncate">
                 {invoiceId}
               </span>
             </CardTitle>
@@ -240,7 +214,7 @@ export default function ReceiptPage() {
               {data.premifyOrderId ? (
                 <>
                   <span className="opacity-40"> • </span>
-                  <span>Order: {data.premifyOrderId}</span>
+                  <span className="break-all sm:break-normal">Order: {data.premifyOrderId}</span>
                 </>
               ) : null}
               {typeof data.payAmount === "number" ? (
@@ -252,38 +226,28 @@ export default function ReceiptPage() {
             </div>
           </div>
 
-          {/* RIGHT ACTIONS */}
           <div className="flex gap-2 sm:justify-end">
             <Button className="btn-soft rounded-2xl" onClick={() => router.back()} title="Back">
               <ArrowLeft className="h-4 w-4" />
             </Button>
 
-            <Button
-              className="btn-soft rounded-2xl"
-              onClick={() => load()}
-              disabled={refreshing}
-              title="Refresh"
-            >
+            <Button className="btn-soft rounded-2xl" onClick={() => load()} disabled={refreshing} title="Refresh">
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             </Button>
 
             <Link href="/" className="flex-1 sm:flex-none">
-              <Button className="btn-brand rounded-2xl w-full sm:w-auto">
-                Kembali ke Store
-              </Button>
+              <Button className="btn-brand rounded-2xl w-full sm:w-auto">Kembali ke Store</Button>
             </Link>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-5">
-          {/* PRODUK */}
           <section className="space-y-2">
             <div className="text-sm font-semibold">Produk</div>
             <Row label="Nama Produk" value={data.productName || "-"} />
             <Row label="Variant" value={data.variantName || "-"} />
           </section>
 
-          {/* AKSES */}
           <section className="space-y-2 pt-2">
             <div className="flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Akses Akun</div>
@@ -305,8 +269,7 @@ export default function ReceiptPage() {
 
             {items.length === 0 ? (
               <div className="rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] p-4 text-sm text-subtle">
-                Akses belum terbaca dari receipt. Pastikan backend menyimpan <b>account_details</b> dari Premify
-                (atau gunakan extractor).
+                Akses belum tersedia.
               </div>
             ) : (
               <div className="grid gap-2">
