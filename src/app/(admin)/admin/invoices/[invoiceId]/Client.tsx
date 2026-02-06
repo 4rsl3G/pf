@@ -2,42 +2,44 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { apiFetch, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-export default function AdminInvoiceDetailClient({ invoiceId }: { invoiceId: string }) {
+export default function AdminInvoiceDetail() {
+  const params = useParams<{ invoiceId?: string }>();
+
   const invoiceIdRaw = useMemo(() => {
-    const v = invoiceId ?? "";
+    const v = (params?.invoiceId ?? "") as string;
     try {
       return decodeURIComponent(v);
     } catch {
       return v;
     }
-  }, [invoiceId]);
+  }, [params?.invoiceId]);
 
   const invoiceKey = useMemo(() => encodeURIComponent(invoiceIdRaw), [invoiceIdRaw]);
 
   const [inv, setInv] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+
   const disableActions = busy || loading;
 
   const load = useCallback(async () => {
     if (!invoiceIdRaw) return;
     const r = await apiFetch<any>(`/admin/invoices/${invoiceKey}`, { auth: true });
-    setInv(r.data ?? null);
+    setInv(r?.data ?? null);
   }, [invoiceIdRaw, invoiceKey]);
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        if (!invoiceIdRaw) {
-          setInv(null);
-          return;
-        }
+        setInv(null);
+        if (!invoiceIdRaw) return;
         await load();
       } catch (e: any) {
         setInv(null);
@@ -96,47 +98,46 @@ export default function AdminInvoiceDetailClient({ invoiceId }: { invoiceId: str
 
   if (!invoiceIdRaw) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-sm text-subtle">Invoice Detail</div>
-            <div className="text-2xl font-semibold">Invoice ID kosong</div>
-          </div>
-          <Link href="/admin/invoices">
-            <Button variant="secondary" className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft">
-              Back
-            </Button>
-          </Link>
-        </div>
-
+      <div className="max-w-6xl mx-auto px-4 space-y-6">
+        <Header title="Invoice ID kosong" subtitle="URL tidak valid / params belum kebaca" />
         <Card className="card-glass border-soft rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-base">URL tidak valid</CardTitle>
+            <CardTitle className="text-base">Buka dari halaman list</CardTitle>
             <CardDescription className="text-subtle">
-              Buka detail invoice melalui halaman list agar parameter terisi dengan benar.
+              Pastikan file ada di: <span className="font-mono">src/app/(admin)/admin/invoices/[invoiceId]/page.tsx</span>
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <Link href="/admin/invoices">
+              <Button variant="secondary" className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft">
+                Back to Invoices
+              </Button>
+            </Link>
+          </CardContent>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <div className="text-sm text-subtle">Invoice Detail</div>
-          <div className="text-2xl font-semibold">{invoiceIdRaw}</div>
-        </div>
-        <Link href="/admin/invoices">
-          <Button variant="secondary" className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft">
-            Back
-          </Button>
-        </Link>
-      </div>
+    <div className="max-w-6xl mx-auto px-4 space-y-6">
+      <Header
+        title={invoiceIdRaw}
+        subtitle={inv ? `${inv.productName} — ${inv.variantName}` : "Invoice Detail"}
+        right={
+          <Link href="/admin/invoices">
+            <Button variant="secondary" className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft">
+              Back
+            </Button>
+          </Link>
+        }
+      />
 
       {loading ? (
-        <div className="card-glass rounded-2xl p-6 skeleton h-[240px]" />
+        <div className="grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
+          <div className="card-glass rounded-2xl p-6 skeleton h-[360px]" />
+          <div className="card-glass rounded-2xl p-6 skeleton h-[360px]" />
+        </div>
       ) : !inv ? (
         <Card className="card-glass border-soft rounded-2xl">
           <CardHeader>
@@ -147,40 +148,37 @@ export default function AdminInvoiceDetailClient({ invoiceId }: { invoiceId: str
           </CardHeader>
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
+        <div className="grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
+          {/* INFO */}
           <Card className="card-glass border-soft rounded-2xl">
-            <CardHeader>
-              <CardTitle className="text-base">Info</CardTitle>
-              <CardDescription className="text-subtle">
-                {inv.productName} — {inv.variantName}
-              </CardDescription>
+            <CardHeader className="space-y-1">
+              <CardTitle className="text-base">Invoice Info</CardTitle>
+              <CardDescription className="text-subtle">Status & detail pembayaran / order</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <Row k="Status" v={inv.status} />
-              <Row k="Pay Amount" v={`Rp ${Number(inv.payAmount || 0).toLocaleString("id-ID")}`} />
-              <Row k="Unique Code" v={String(inv.uniqueCode)} />
-              <Row k="Markup" v={`Rp ${Number(inv.markup || 0).toLocaleString("id-ID")}`} />
-              <Row k="Premify Order" v={inv.premifyOrderId || "-"} />
-              <Row k="Matched Tx" v={inv.matchedTxId || "-"} />
-              <Row k="Created" v={fmtDate(inv.createdAt)} />
-              <Row k="Expires" v={fmtDate(inv.expiresAt)} />
-              <Row k="PaidAt" v={inv.paidAt ? fmtDate(inv.paidAt) : "-"} />
 
-              <div className="flex gap-2 flex-wrap pt-2">
-                <Button className="btn-brand rounded-2xl" onClick={retryFulfill} disabled={disableActions}>
+            <CardContent className="space-y-4">
+              {/* ACTION BAR (RESPONSIVE) */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <Button
+                  className="btn-brand rounded-2xl w-full sm:w-auto"
+                  onClick={retryFulfill}
+                  disabled={disableActions}
+                >
                   Retry Fulfill
                 </Button>
+
                 <Button
                   variant="secondary"
-                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
+                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft w-full sm:w-auto"
                   onClick={refetchReceipt}
                   disabled={disableActions}
                 >
                   Refetch Receipt
                 </Button>
+
                 <Button
                   variant="secondary"
-                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft"
+                  className="rounded-2xl bg-[rgba(255,255,255,.06)] border-soft w-full sm:w-auto"
                   onClick={expire}
                   disabled={disableActions}
                 >
@@ -188,23 +186,51 @@ export default function AdminInvoiceDetailClient({ invoiceId }: { invoiceId: str
                 </Button>
               </div>
 
-              {inv.premifyReceiptJson ? (
-                <div className="pt-3">
-                  <div className="text-xs text-subtle mb-2">Receipt JSON</div>
-                  <pre className="text-xs bg-[rgba(255,255,255,.06)] border border-soft rounded-2xl p-4 overflow-auto max-h-[260px]">
+              {/* KV GRID */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <KV k="Status" v={<StatusPill status={inv.status} />} />
+                <KV k="Pay Amount" v={`Rp ${Number(inv.payAmount || 0).toLocaleString("id-ID")}`} />
+
+                <KV k="Unique Code" v={String(inv.uniqueCode)} />
+                <KV k="Markup" v={`Rp ${Number(inv.markup || 0).toLocaleString("id-ID")}`} />
+
+                <KV k="Premify Order" v={inv.premifyOrderId || "-"} mono />
+                <KV k="Matched Tx" v={inv.matchedTxId || "-"} mono />
+
+                <KV k="Created" v={fmtDate(inv.createdAt)} />
+                <KV k="Expires" v={fmtDate(inv.expiresAt)} />
+                <KV k="PaidAt" v={inv.paidAt ? fmtDate(inv.paidAt) : "-"} />
+              </div>
+
+              {/* RECEIPT */}
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">Receipt JSON</div>
+                  </div>
+                  <div className="text-xs text-subtle shrink-0">{inv.premifyReceiptJson ? "available" : "empty"}</div>
+                </div>
+
+                {inv.premifyReceiptJson ? (
+                  <pre className="mt-2 text-xs bg-[rgba(255,255,255,.06)] border border-soft rounded-2xl p-4 overflow-x-auto max-h-[320px]">
                     {safePretty(inv.premifyReceiptJson)}
                   </pre>
-                </div>
-              ) : null}
+                ) : (
+                  <div className="mt-2 text-sm text-subtle">
+                    Belum ada receipt. Klik <span className="font-medium">Refetch Receipt</span>.
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="card-glass border-soft rounded-2xl">
-            <CardHeader>
+          {/* QR */}
+          <Card className="card-glass border-soft rounded-2xl lg:sticky lg:top-6 h-fit">
+            <CardHeader className="space-y-1">
               <CardTitle className="text-base">QR (Pending only)</CardTitle>
               <CardDescription className="text-subtle">QR akan 404 setelah paid/expired</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               {qrisPng ? (
                 <div className="rounded-2xl overflow-hidden border border-soft bg-white">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -213,6 +239,7 @@ export default function AdminInvoiceDetailClient({ invoiceId }: { invoiceId: str
               ) : (
                 <div className="text-sm text-subtle">Tidak ada token QR (bukan pending / sudah hilang).</div>
               )}
+              <div className="text-xs text-subtle">Jika QR tidak muncul, kemungkinan invoice sudah paid/expired.</div>
             </CardContent>
           </Card>
         </div>
@@ -221,12 +248,45 @@ export default function AdminInvoiceDetailClient({ invoiceId }: { invoiceId: str
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
+function Header({ title, subtitle, right }: { title: string; subtitle?: string; right?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] px-4 py-3">
-      <div className="text-xs text-subtle">{k}</div>
-      <div className="font-medium">{v}</div>
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <div className="text-sm text-subtle">Invoice Detail</div>
+        <div className="text-xl sm:text-2xl font-semibold break-words sm:truncate">{title}</div>
+        {subtitle ? <div className="text-sm text-subtle mt-1 break-words sm:truncate">{subtitle}</div> : null}
+      </div>
+
+      {right ? <div className="shrink-0">{right}</div> : null}
     </div>
+  );
+}
+
+function KV({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) {
+  return (
+    <div className="rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] px-4 py-3 min-w-0">
+      <div className="text-xs text-subtle">{k}</div>
+      <div className={`mt-1 font-medium break-words ${mono ? "font-mono text-[12px]" : ""}`}>{v}</div>
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const map: any = {
+    PENDING: "bg-[rgba(245,158,11,.15)] border-[rgba(245,158,11,.28)]",
+    PAID: "bg-[rgba(16,185,129,.14)] border-[rgba(16,185,129,.25)]",
+    FULFILLED: "bg-[rgba(16,185,129,.22)] border-[rgba(16,185,129,.35)]",
+    EXPIRED: "bg-[rgba(239,68,68,.14)] border-[rgba(239,68,68,.25)]",
+    FAILED: "bg-[rgba(239,68,68,.14)] border-[rgba(239,68,68,.25)]",
+  };
+  return (
+    <span
+      className={`inline-flex items-center rounded-2xl border px-3 py-1 text-xs ${
+        map[status] || "border-soft bg-[rgba(255,255,255,.06)]"
+      }`}
+    >
+      {status}
+    </span>
   );
 }
 
@@ -240,10 +300,7 @@ function fmtDate(v: any) {
 
 function safePretty(x: any) {
   try {
-    if (typeof x === "string") {
-      const j = JSON.parse(x);
-      return JSON.stringify(j, null, 2);
-    }
+    if (typeof x === "string") return JSON.stringify(JSON.parse(x), null, 2);
     return JSON.stringify(x, null, 2);
   } catch {
     return String(x);
