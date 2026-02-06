@@ -9,25 +9,106 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { RefreshCw, Copy, ArrowLeft } from "lucide-react";
 
-type ReceiptApi = {
-  invoiceId: string;
-  status: "FULFILLED" | string;
-  productName?: string | null;
-  variantName?: string | null;
-  payAmount?: number | null;
-  premifyOrderId?: string | null;
-  raw?: any;
-  access?: {
-    items?: { label: string; value: string }[];
-    note?: string | null;
-  };
-};
+type AccessItem = { label: string; value: string };
 
 function formatIDR(n: any) {
   const x = Number(n || 0);
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" })
     .format(x)
     .replace(",00", "");
+}
+
+function pickFirst<T>(v: any): T | null {
+  if (!v) return null;
+  if (Array.isArray(v)) return (v[0] as T) || null;
+  return v as T;
+}
+
+function extractItemsFromPremify(raw: any): AccessItem[] {
+  const out: AccessItem[] = [];
+
+  const accountDetails = raw?.account_details;
+  if (!Array.isArray(accountDetails)) return out;
+
+  for (const ad of accountDetails) {
+    const details = Array.isArray(ad?.details) ? ad.details : [];
+    for (const d of details) {
+      const creds = Array.isArray(d?.credentials) ? d.credentials : [];
+      for (const c of creds) {
+        const label = String(c?.label || "").trim();
+        const value = String(c?.value || "").trim();
+        if (label && value) out.push({ label, value });
+      }
+    }
+  }
+
+  // dedupe (label+value)
+  const seen = new Set<string>();
+  return out.filter((x) => {
+    const k = `${x.label}::${x.value}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+function normalizeReceipt(anyResp: any) {
+  // kemungkinan bentuk:
+  // A) { success:true, data: {...} }
+  // B) { success:true, data: [ {...} ] }
+  // C) { success:true, message:"", data:[...] } (premify raw)
+  const data = anyResp?.data ?? anyResp;
+  const one = pickFirst<any>(data);
+
+  if (!one) return null;
+
+  // 1) format "normalized" (kalau backend kamu sudah bikin access.items)
+  const normalizedItems: AccessItem[] = Array.isArray(one?.access?.items)
+    ? one.access.items.filter((x: any) => x?.label && x?.value)
+    : [];
+
+  // 2) format premify raw
+  const premifyItems = extractItemsFromPremify(one);
+
+  // product info: prefer normalized field -> fallback premify products[0]
+  const p0 = Array.isArray(one?.products) ? one.products[0] : null;
+
+  const productName =
+    one?.productName ??
+    p0?.product_name ??
+    p0?.product ??
+    null;
+
+  const variantName =
+    one?.variantName ??
+    p0?.variant_name ??
+    null;
+
+  const payAmount =
+    one?.payAmount ??
+    one?.total_amount ??
+    null;
+
+  const orderId =
+    one?.premifyOrderId ??
+    one?.order_id ??
+    null;
+
+  // invoiceId: biasanya dari URL, tapi kalau backend ada, pakai itu
+  const invoiceId =
+    one?.invoiceId ??
+    one?.invoice_id ??
+    null;
+
+  return {
+    invoiceId,
+    productName,
+    variantName,
+    payAmount,
+    premifyOrderId: orderId,
+    items: normalizedItems.length ? normalizedItems : premifyItems,
+    raw: one,
+  };
 }
 
 export default function ReceiptPage() {
@@ -42,24 +123,25 @@ export default function ReceiptPage() {
     }
   }, [params?.invoiceId]);
 
-  const [data, setData] = useState<ReceiptApi | null>(null);
+  const [data, setData] = useState<ReturnType<typeof normalizeReceipt> | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   async function load(opts?: { silent?: boolean }) {
     if (!invoiceId) return;
-
     const silent = !!opts?.silent;
+
     try {
       if (!silent) setRefreshing(true);
-      const r = await apiFetch<{ success: true; data: ReceiptApi }>(
-        `/invoice/${encodeURIComponent(invoiceId)}/receipt`
-      );
-      setData(r.data);
+
+      const r = await apiFetch<any>(`/invoice/${encodeURIComponent(invoiceId)}/receipt`);
+      const norm = normalizeReceipt(r);
+
+      setData(norm);
+      if (!norm) toast.error("Receipt belum tersedia");
     } catch (e: any) {
-      const msg = e?.error || e?.message || "Receipt belum tersedia";
-      toast.error(msg);
       setData(null);
+      toast.error(e?.error || e?.message || "Receipt belum tersedia");
     } finally {
       setLoading(false);
       if (!silent) setRefreshing(false);
@@ -101,29 +183,26 @@ export default function ReceiptPage() {
     );
   }
 
-  // kalau receipt belum tersedia atau error
   if (!data) {
     return (
       <div className="mx-auto max-w-xl px-4 py-10">
         <Card className="card-glass border-soft rounded-2xl">
           <CardHeader className="flex flex-row items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <div className="text-xs text-subtle">Receipt</div>
-              <CardTitle className="text-xl">{invoiceId}</CardTitle>
+              <CardTitle className="text-lg sm:text-xl font-semibold truncate">
+                {invoiceId}
+              </CardTitle>
               <div className="text-xs text-subtle mt-1">
-                Receipt belum tersedia atau gagal dimuat.
+                Receipt belum tersedia. Klik refresh beberapa saat lagi.
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <Button className="btn-soft rounded-2xl" onClick={() => router.back()}>
+            <div className="flex gap-2 shrink-0">
+              <Button className="btn-soft rounded-2xl" onClick={() => router.back()} title="Back">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <Button
-                className="btn-brand rounded-2xl"
-                onClick={() => load()}
-                disabled={refreshing}
-              >
+              <Button className="btn-brand rounded-2xl" onClick={() => load()} disabled={refreshing}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
@@ -139,17 +218,24 @@ export default function ReceiptPage() {
     );
   }
 
-  const items = (data.access?.items || []).filter((x) => x?.label && x?.value);
+  const items = (data.items || []).filter((x) => x.label && x.value);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 space-y-4 pb-24">
       <Card className="card-glass border-soft rounded-2xl">
-        <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          {/* LEFT */}
           <div className="min-w-0">
             <div className="text-xs text-subtle">Receipt</div>
-            <CardTitle className="text-2xl break-words">{invoiceId}</CardTitle>
 
-            <div className="mt-1 text-xs text-subtle">
+            {/* FIX: jangan break per karakter */}
+            <CardTitle className="mt-1 text-xl sm:text-2xl font-semibold leading-tight">
+              <span className="block font-mono tracking-tight break-normal whitespace-normal sm:whitespace-nowrap sm:truncate">
+                {invoiceId}
+              </span>
+            </CardTitle>
+
+            <div className="mt-2 text-xs text-subtle">
               Status: <b className="text-[rgb(var(--brand))]">Berhasil</b>
               {data.premifyOrderId ? (
                 <>
@@ -166,10 +252,12 @@ export default function ReceiptPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 shrink-0">
+          {/* RIGHT ACTIONS */}
+          <div className="flex gap-2 sm:justify-end">
             <Button className="btn-soft rounded-2xl" onClick={() => router.back()} title="Back">
               <ArrowLeft className="h-4 w-4" />
             </Button>
+
             <Button
               className="btn-soft rounded-2xl"
               onClick={() => load()}
@@ -178,8 +266,11 @@ export default function ReceiptPage() {
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             </Button>
-            <Link href="/">
-              <Button className="btn-brand rounded-2xl">Kembali ke Store</Button>
+
+            <Link href="/" className="flex-1 sm:flex-none">
+              <Button className="btn-brand rounded-2xl w-full sm:w-auto">
+                Kembali ke Store
+              </Button>
             </Link>
           </div>
         </CardHeader>
@@ -196,6 +287,7 @@ export default function ReceiptPage() {
           <section className="space-y-2 pt-2">
             <div className="flex items-center justify-between gap-2">
               <div className="text-sm font-semibold">Akses Akun</div>
+
               {items.length ? (
                 <Button
                   className="btn-soft rounded-2xl h-9"
@@ -211,13 +303,10 @@ export default function ReceiptPage() {
               ) : null}
             </div>
 
-            {data.access?.note ? (
-              <div className="text-xs text-subtle">{data.access.note}</div>
-            ) : null}
-
             {items.length === 0 ? (
               <div className="rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] p-4 text-sm text-subtle">
-                Akses belum tersedia. Klik <b>Refresh</b> beberapa saat lagi.
+                Akses belum terbaca dari receipt. Pastikan backend menyimpan <b>account_details</b> dari Premify
+                (atau gunakan extractor).
               </div>
             ) : (
               <div className="grid gap-2">
