@@ -7,7 +7,16 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { RefreshCw, Copy, ArrowLeft } from "lucide-react";
+import {
+  RefreshCw,
+  Copy,
+  ArrowLeft,
+  ShieldCheck,
+  Sparkles,
+  BadgeCheck,
+  Clock,
+  CheckCircle2,
+} from "lucide-react";
 
 type AccessItem = { label: string; value: string };
 
@@ -24,11 +33,17 @@ function pickFirst<T>(v: any): T | null {
   return v as T;
 }
 
+function normalizeSpaces(s: any) {
+  return String(s ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function dedupeItems(items: AccessItem[]) {
   const seen = new Set<string>();
   return items.filter((x) => {
-    const label = String(x?.label || "").trim();
-    const value = String(x?.value || "").trim();
+    const label = normalizeSpaces(x?.label);
+    const value = normalizeSpaces(x?.value);
     if (!label || !value) return false;
     const k = `${label}::${value}`;
     if (seen.has(k)) return false;
@@ -37,17 +52,32 @@ function dedupeItems(items: AccessItem[]) {
   });
 }
 
-function normalizeSpaces(s: any) {
-  return String(s ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+function splitLines(s: string) {
+  return String(s || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function parseKeyValueLines(text: string): AccessItem[] {
+  // contoh: "Email: user@gmail.com" / "NOTE: ..."
+  const items: AccessItem[] = [];
+  for (const line of splitLines(text)) {
+    const m = line.match(/^([^:]{2,40})\s*:\s*(.+)$/);
+    if (m) items.push({ label: m[1].trim(), value: m[2].trim() });
+    else items.push({ label: "Info", value: line });
+  }
+  return items;
 }
 
 /**
  * Premify kemungkinan:
- * - account_details[].details[].credentials[] -> {label,value}
- * - account_details[].details[] -> {label,value} (tanpa credentials) ✅
- * - account_details[].details: null + message (Invite diproses)
+ * - details[].credentials[] -> {label,value}
+ * - details[] -> {label,value}
+ * - details: string (Invite) ✅
+ * - details: null + message (Invite diproses) ✅
  */
 function extractFromPremify(raw: any): {
   items: AccessItem[];
@@ -59,7 +89,6 @@ function extractFromPremify(raw: any): {
 
   let msg: string | null = null;
   let isInvite = false;
-
   const out: AccessItem[] = [];
 
   for (const ad of accountDetails) {
@@ -68,19 +97,29 @@ function extractFromPremify(raw: any): {
       normalizeSpaces(ad?.msg) ||
       normalizeSpaces(ad?.note) ||
       "";
+
     if (adMsg && !msg) msg = adMsg;
 
     const details = ad?.details;
 
-    if (details === null || details === undefined) {
-      // invite sering details = null + message
+    // ✅ Invite: details string
+    if (typeof details === "string" && details.trim()) {
       isInvite = true;
+      out.push(...parseKeyValueLines(details));
       continue;
     }
 
+    // ✅ Invite pending: details null + message
+    if (details === null || details === undefined) {
+      isInvite = true;
+      if (adMsg) out.push({ label: "Status", value: adMsg });
+      continue;
+    }
+
+    // details array
     const arr = Array.isArray(details) ? details : [];
     for (const d of arr) {
-      // CASE A: d.credentials = [{label,value}]
+      // A) credentials
       const creds = Array.isArray(d?.credentials) ? d.credentials : null;
       if (creds?.length) {
         for (const c of creds) {
@@ -91,12 +130,12 @@ function extractFromPremify(raw: any): {
         continue;
       }
 
-      // CASE B: d langsung {label,value}
+      // B) direct label/value
       const label = normalizeSpaces(d?.label);
       const value = normalizeSpaces(d?.value);
       if (label && value) out.push({ label, value });
 
-      // CASE C fallback: {title,value}/{name,value}
+      // fallback
       const label2 = normalizeSpaces(d?.title || d?.name);
       const value2 = normalizeSpaces(d?.value || d?.val);
       if (label2 && value2) out.push({ label: label2, value: value2 });
@@ -114,7 +153,6 @@ function normalizeReceipt(anyResp: any) {
   const one = pickFirst<any>(data);
   if (!one) return null;
 
-  // normalized backend
   const normalizedItems: AccessItem[] = Array.isArray(one?.access?.items)
     ? dedupeItems(
         one.access.items.map((x: any) => ({
@@ -125,7 +163,6 @@ function normalizeReceipt(anyResp: any) {
     : [];
 
   const raw = one?.raw ?? one;
-
   const premify = extractFromPremify(raw);
 
   const p0 = Array.isArray(raw?.products) ? raw.products[0] : null;
@@ -144,6 +181,11 @@ function normalizeReceipt(anyResp: any) {
 
   const items = normalizedItems.length ? normalizedItems : premify.items;
 
+  const invitePending =
+    premify.isInvite &&
+    items.length === 0 &&
+    (!!premify.message || raw?.account_details?.some?.((x: any) => x?.details == null));
+
   return {
     invoiceId,
     productName,
@@ -152,9 +194,61 @@ function normalizeReceipt(anyResp: any) {
     premifyOrderId: orderId,
     items,
     inviteMessage: premify.message,
-    invitePending: premify.isInvite && items.length === 0, // invite + belum ada detail
+    invitePending,
     raw,
   };
+}
+
+function Pill({
+  icon,
+  text,
+}: {
+  icon: React.ReactNode;
+  text: string;
+}) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-2xl border border-soft bg-[rgba(255,255,255,.06)] px-3 py-2 text-xs text-[rgba(11,23,18,.82)]">
+      <span className="shrink-0">{icon}</span>
+      <span className="whitespace-nowrap">{text}</span>
+    </div>
+  );
+}
+
+function InfoCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-3xl border border-soft bg-[rgba(255,255,255,.04)] p-4 sm:p-5">
+      <div className="text-sm font-semibold">{title}</div>
+      <div className="mt-3">{children}</div>
+    </div>
+  );
+}
+
+function CopyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="group flex items-start justify-between gap-3 rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] px-4 py-3">
+      <div className="min-w-0">
+        <div className="text-xs text-subtle">{label}</div>
+        <div className="mt-1 font-medium break-words text-[rgba(11,23,18,.92)]">{value}</div>
+      </div>
+
+      <Button
+        variant="secondary"
+        className="rounded-2xl bg-black/[0.03] border border-soft hover:bg-black/[0.05] shrink-0"
+        onClick={() => {
+          navigator.clipboard.writeText(value);
+          toast.success("Disalin");
+        }}
+      >
+        Copy
+      </Button>
+    </div>
+  );
 }
 
 export default function ReceiptPage() {
@@ -210,13 +304,12 @@ export default function ReceiptPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
 
-  // auto refresh untuk Invite yang masih diproses
+  // auto refresh untuk Invite pending
   useEffect(() => {
     if (autoTimerRef.current) {
       clearInterval(autoTimerRef.current);
       autoTimerRef.current = null;
     }
-
     if (!data?.invitePending) return;
 
     autoTimerRef.current = setInterval(() => {
@@ -230,7 +323,7 @@ export default function ReceiptPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.invitePending, invoiceId]);
 
-  // toast tip untuk invite pending (dibatasi biar ga spam)
+  // toast tip untuk invite pending (anti spam)
   useEffect(() => {
     if (!data?.invitePending) return;
     const now = Date.now();
@@ -243,7 +336,7 @@ export default function ReceiptPage() {
   if (!invoiceId) {
     return (
       <div className="mx-auto max-w-xl px-4 py-10">
-        <Card className="card-glass border-soft rounded-2xl p-6">
+        <Card className="card-glass border-soft rounded-3xl p-6">
           <div className="text-sm text-subtle">Invalid URL</div>
           <div className="text-xl font-semibold mt-1">Invoice ID kosong</div>
           <div className="mt-4 flex gap-2">
@@ -263,7 +356,7 @@ export default function ReceiptPage() {
   if (loading) {
     return (
       <div className="mx-auto max-w-xl px-4 py-10">
-        <div className="card-glass rounded-2xl p-6 skeleton h-[220px]" />
+        <div className="card-glass rounded-3xl p-6 skeleton h-[260px]" />
       </div>
     );
   }
@@ -271,7 +364,7 @@ export default function ReceiptPage() {
   if (!data) {
     return (
       <div className="mx-auto max-w-xl px-4 py-10">
-        <Card className="card-glass border-soft rounded-2xl">
+        <Card className="card-glass border-soft rounded-3xl">
           <CardHeader className="flex flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-xs text-subtle">Receipt</div>
@@ -304,45 +397,40 @@ export default function ReceiptPage() {
   const items = dedupeItems((data.items || []).map((x) => ({ label: x.label, value: x.value })));
   const invitePending = !!data.invitePending;
   const inviteMsg =
-    data.inviteMessage ||
-    "Detail akun sedang diproses. Silakan tunggu sebentar lalu klik Refresh.";
+    data.inviteMessage || "Detail akun sedang diproses. Silakan tunggu sebentar lalu klik Refresh.";
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 space-y-4 pb-24">
-      <Card className="card-glass border-soft rounded-2xl">
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:py-10 space-y-4 pb-24">
+      {/* HERO */}
+      <div className="rounded-3xl border border-soft bg-[rgba(255,255,255,.04)] p-5 sm:p-6 card-glass">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <div className="text-xs text-subtle">Receipt</div>
+            <div className="inline-flex items-center gap-2 text-xs text-subtle">
+              <Sparkles className="h-4 w-4" />
+              <span>Receipt</span>
+            </div>
 
-            <CardTitle className="mt-1 text-xl sm:text-2xl font-semibold leading-tight">
-              <span className="block font-mono tracking-tight break-normal whitespace-normal sm:whitespace-nowrap sm:truncate">
+            <div className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight leading-tight">
+              <span className="block font-mono break-normal whitespace-normal sm:whitespace-nowrap sm:truncate">
                 {invoiceId}
               </span>
-            </CardTitle>
+            </div>
 
-            <div className="mt-2 text-xs text-subtle">
-              Status: <b className="text-[rgb(var(--brand))]">Berhasil</b>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Pill icon={<BadgeCheck className="h-4 w-4" />} text="Berhasil" />
               {data.premifyOrderId ? (
-                <>
-                  <span className="opacity-40"> • </span>
-                  <span>Order: {data.premifyOrderId}</span>
-                </>
+                <Pill icon={<ShieldCheck className="h-4 w-4" />} text={`Order: ${data.premifyOrderId}`} />
               ) : null}
               {data.payAmount !== null && data.payAmount !== undefined ? (
-                <>
-                  <span className="opacity-40"> • </span>
-                  <span>Nominal: {formatIDR(data.payAmount)}</span>
-                </>
+                <Pill icon={<CheckCircle2 className="h-4 w-4" />} text={`Nominal: ${formatIDR(data.payAmount)}`} />
               ) : null}
               {invitePending ? (
-                <>
-                  <span className="opacity-40"> • </span>
-                  <span className="text-subtle">Sedang diproses</span>
-                </>
+                <Pill icon={<Clock className="h-4 w-4" />} text="Sedang diproses" />
               ) : null}
             </div>
           </div>
 
+          {/* ACTIONS */}
           <div className="flex gap-2 sm:justify-end">
             <Button className="btn-soft rounded-2xl" onClick={() => router.back()} title="Back">
               <ArrowLeft className="h-4 w-4" />
@@ -356,18 +444,26 @@ export default function ReceiptPage() {
               <Button className="btn-brand rounded-2xl w-full sm:w-auto">Kembali ke Store</Button>
             </Link>
           </div>
-        </CardHeader>
+        </div>
+      </div>
 
-        <CardContent className="space-y-5">
-          <section className="space-y-2">
-            <div className="text-sm font-semibold">Produk</div>
-            <Row label="Nama Produk" value={data.productName || "-"} />
-            <Row label="Variant" value={data.variantName || "-"} />
-          </section>
+      {/* CONTENT */}
+      <Card className="card-glass border-soft rounded-3xl overflow-hidden">
+        <CardContent className="p-4 sm:p-6 space-y-4">
+          {/* PRODUK */}
+          <InfoCard title="Produk">
+            <div className="grid gap-2">
+              <Row label="Nama Produk" value={data.productName || "-"} />
+              <Row label="Variant" value={data.variantName || "-"} />
+            </div>
+          </InfoCard>
 
-          <section className="space-y-2 pt-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-semibold">Akses Akun</div>
+          {/* AKSES */}
+          <InfoCard title="Akses Akun">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="text-xs text-subtle">
+                Salin data akses untuk login / redeem (jika tersedia).
+              </div>
 
               {items.length ? (
                 <Button
@@ -385,49 +481,45 @@ export default function ReceiptPage() {
             </div>
 
             {items.length === 0 ? (
-              <div className="rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] p-4 text-sm text-subtle">
+              <div className="rounded-3xl border border-soft bg-[rgba(255,255,255,.04)] p-4 sm:p-5">
                 {invitePending ? (
-                  <>
-                    <div className="font-medium text-[rgba(11,23,18,.92)]">Sedang diproses</div>
-                    <div className="mt-1">{inviteMsg}</div>
-                    <div className="mt-3 flex gap-2">
-                      <Button className="btn-soft rounded-2xl" onClick={() => load()} disabled={refreshing}>
-                        <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
-                        Cek lagi
-                      </Button>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-2xl border border-[rgba(245,158,11,.28)] bg-[rgba(245,158,11,.12)] p-2">
+                      <Clock className="h-5 w-5" />
                     </div>
-                  </>
+
+                    <div className="min-w-0">
+                      <div className="font-semibold text-[rgba(11,23,18,.92)]">Sedang diproses</div>
+                      <div className="mt-1 text-sm text-subtle break-words">{inviteMsg}</div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button className="btn-soft rounded-2xl" onClick={() => load()} disabled={refreshing}>
+                          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+                          Cek lagi
+                        </Button>
+                        <Link href="/">
+                          <Button className="btn-brand rounded-2xl">Belanja lagi</Button>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
-                  <>Akses belum tersedia.</>
+                  <div className="text-sm text-subtle">Akses belum tersedia.</div>
                 )}
               </div>
             ) : (
               <div className="grid gap-2">
                 {items.map((c, i) => (
-                  <div
-                    key={`${c.label}-${i}`}
-                    className="flex items-start justify-between gap-3 rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-xs text-subtle">{c.label}</div>
-                      <div className="font-medium break-words">{c.value}</div>
-                    </div>
-
-                    <Button
-                      variant="secondary"
-                      className="rounded-2xl bg-black/[0.03] border border-soft hover:bg-black/[0.05] shrink-0"
-                      onClick={() => {
-                        navigator.clipboard.writeText(c.value);
-                        toast.success("Disalin");
-                      }}
-                    >
-                      Copy
-                    </Button>
-                  </div>
+                  <CopyField key={`${c.label}-${i}`} label={c.label} value={c.value} />
                 ))}
               </div>
             )}
-          </section>
+          </InfoCard>
+
+          {/* FOOTER NOTE */}
+          <div className="rounded-3xl border border-soft bg-[rgba(255,255,255,.03)] p-4 text-xs text-subtle">
+            Tips: Simpan halaman ini. Jika “Invite”, cek email sesuai yang tertera.
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -438,7 +530,7 @@ function Row({ label, value }: { label: string; value: any }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-soft bg-[rgba(255,255,255,.04)] px-4 py-3">
       <div className="text-xs text-subtle">{label}</div>
-      <div className="font-medium text-right break-words">{value || "-"}</div>
+      <div className="font-medium text-right break-words text-[rgba(11,23,18,.92)]">{value || "-"}</div>
     </div>
   );
 }
