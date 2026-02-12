@@ -1,47 +1,88 @@
-export const API_BASE = "http://localhost:5000";
+export const API_BASE =
+  (process.env.NEXT_PUBLIC_API_BASE && process.env.NEXT_PUBLIC_API_BASE.trim()) ||
+  ""; // fallback
 
-export type ApiError = { error?: string; message?: string; status?: number; raw?: string };
+export type ApiError = {
+  error?: string;
+  message?: string;
+  status?: number;
+  raw?: string;
+};
 
-export async function apiFetch<T>(
-  path: string,
-  init: (RequestInit & { auth?: boolean; raw?: boolean }) = {}
-): Promise<T> {
+type ApiInit = RequestInit & {
+  auth?: boolean;
+  raw?: boolean;
+  json?: any; // <-- convenience: pass object here
+};
+
+function getAdminToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem("admin_token");
+  } catch {
+    return null;
+  }
+}
+
+export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> {
+  if (!API_BASE) {
+    throw {
+      error: "MISSING_API_BASE",
+      message: "NEXT_PUBLIC_API_BASE tidak di-set. Cek .env dan restart dev server.",
+      status: 0,
+    } satisfies ApiError;
+  }
+
   const headers = new Headers(init.headers || {});
 
-  // Accept JSON by default
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
 
-  // Attach token when needed
+  // Auth header
   if (init.auth) {
-    const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") : null;
+    const token = getAdminToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  // Only set JSON content-type when body is present and body is not FormData
-  const hasBody = init.body !== undefined && init.body !== null;
-  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+  // Body handling:
+  // - if init.json is provided -> stringify + set content-type
+  // - else if init.body is plain object -> stringify
+  let body: any = init.body;
 
-  if (hasBody && !isFormData && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
+  const hasJson = init.json !== undefined;
+  if (hasJson) {
+    body = JSON.stringify(init.json);
+    if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  } else {
+    const hasBody = body !== undefined && body !== null;
+    const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+    const isBlob = typeof Blob !== "undefined" && body instanceof Blob;
+    const isString = typeof body === "string";
+
+    // If user passes plain object as body, auto JSON encode it
+    if (hasBody && !isFormData && !isBlob && !isString && typeof body === "object") {
+      body = JSON.stringify(body);
+      if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    } else if (hasBody && !isFormData && !isBlob && !headers.has("Content-Type")) {
+      // if body is string, caller decides content-type; default to json only if looks json-ish
+      // (optional) keep as-is
+    }
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    body,
     headers,
     cache: "no-store",
   });
 
-  // If caller wants raw (rare), return text
   if (init.raw) {
     const raw = await res.text();
-    if (!res.ok) throw { error: `HTTP_${res.status}`, status: res.status, raw };
+    if (!res.ok) throw { error: `HTTP_${res.status}`, status: res.status, raw } satisfies ApiError;
     return raw as unknown as T;
   }
 
   const ct = res.headers.get("content-type") || "";
   const isJson = ct.includes("application/json");
-
-  // Read body safely
   const text = await res.text();
 
   let data: any = null;
@@ -50,17 +91,14 @@ export async function apiFetch<T>(
       try {
         data = JSON.parse(text);
       } catch {
-        // JSON header but invalid JSON
-        data = { error: "INVALID_JSON", raw: text.slice(0, 300) };
+        data = { error: "INVALID_JSON", raw: text.slice(0, 500) };
       }
     } else {
-      // Non-JSON response (HTML, plain text, etc.)
-      data = { error: "NON_JSON_RESPONSE", raw: text.slice(0, 300) };
+      data = { error: "NON_JSON_RESPONSE", raw: text.slice(0, 500) };
     }
   }
 
   if (!res.ok) {
-    // prefer backend error shape if present
     const err: ApiError = (data && typeof data === "object" ? data : {}) as any;
     err.status = res.status;
     if (!err.error) err.error = `HTTP_${res.status}`;
